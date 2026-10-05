@@ -109,12 +109,13 @@ Límites: transferencia normal 1MiB, lectura del kernel por partes de 4KiB, tabl
 | PDB falla | DIA SDK, compilación/ruta y GUID/Age |
 | Búsqueda parcial/cuota | Reducir rango, New; revisar presupuesto, límites y errores |
 
-Tres regresiones comprueban la existencia del auxiliar DIA; compílelo con `native/build_pdb_symbols.cmd` antes de ejecutar todas. CI enlaza la instalación real de VS 2022 en Windows 2022 a la ruta Professional original y compila el auxiliar. Configura el ejecutor temporal sin editar código.
+La ejecución completa necesita el auxiliar DIA, `samples/PanelHello.dll` y su PDB. Compile el [ejemplo](../../samples/README.md) para evitar la dependencia de una ruta externa de las pruebas originales. CI enlaza VS 2022 a la ruta Professional original y compila auxiliar y ejemplo sin editar el código original.
 
 ```powershell
 cd kernel_control_panel
+powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
 python -m unittest discover -p 'test*.py' -v
 python test_driver_readonly.py
 ```
 
-El primer comando ejecuta regresiones simuladas. El segundo realiza siete consultas de solo lectura sobre el propio proceso de diagnóstico mediante el controlador cargado. `test_driver_all_ioctl.py` usa el mismo diagnóstico, no prueba todas las modificaciones reales. Consulte el [alcance de validación](../VALIDATION.md). Use datos sintéticos en incidencias públicas, sin volcados, PDB privados ni contenido real de memoria.
+El comando `unittest` ejecuta regresiones simuladas. `test_driver_readonly.py` realiza siete consultas de solo lectura sobre el propio proceso de diagnóstico mediante el controlador cargado. `test_driver_all_ioctl.py` usa el mismo diagnóstico, no prueba todas las modificaciones reales. Consulte el [alcance de validación](../VALIDATION.md). Use datos sintéticos en incidencias públicas, sin volcados, PDB privados ni contenido real de memoria.

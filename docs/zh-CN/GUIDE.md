@@ -109,12 +109,13 @@ Invoke-RestMethod http://127.0.0.1:8005/api/studio/execute -Method Post -Content
 | PDB 错误 | DIA SDK、工具构建/路径、GUID/Age 匹配 |
 | 部分扫描/Quota | 缩小范围重做 New，检查预算、上限、读取失败 |
 
-其中 3 项回归检查 DIA 工具文件是否存在，完整测试前需运行 `native/build_pdb_symbols.cmd`。CI 将 Windows 2022 中实际 VS 2022 安装映射至原代码要求的 Professional 路径，再构建工具。只配置临时运行环境，不修改源码。
+完整回归需要 DIA 工具、`samples/PanelHello.dll` 及匹配 PDB。按下列命令构建[样例源码](../../samples/README.md)，避免原测试依赖外部路径。CI 将实际 VS 2022 安装映射至原 Professional 路径并构建工具与样例，不修改原源码。
 
 ```powershell
 cd kernel_control_panel
+powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
 python -m unittest discover -p 'test*.py' -v
 python test_driver_readonly.py
 ```
 
-第一条运行原有模拟回归测试，第二条通过已加载驱动对诊断进程自身执行 7 项只读查询。`test_driver_all_ioctl.py` 也是同一诊断入口，不是完整真实写入测试。参见[验证范围](../VALIDATION.md)。公开问题请提供合成测试数据，不上传私人转储、PDB 或真实内存内容。
+`unittest` 命令运行原有模拟回归测试，`test_driver_readonly.py`通过已加载驱动对诊断进程自身执行 7 项只读查询。`test_driver_all_ioctl.py` 也是同一诊断入口，不是完整真实写入测试。参见[验证范围](../VALIDATION.md)。公开问题请提供合成测试数据，不上传私人转储、PDB 或真实内存内容。

@@ -111,12 +111,13 @@ HTTP 200만으로 성공을 판단하지 말고 `success`, `result_status`, `dri
 | PDB 실패 | DIA SDK·도구 빌드·경로·GUID/Age 일치 여부 |
 | 부분 검색/Quota 오류 | 범위를 좁혀 다시 New; 예산·목록 상한·읽기 실패 확인 |
 
-전체 회귀 시험 중 3개는 DIA 도구 파일의 존재를 검사하므로 시험 전에 `native/build_pdb_symbols.cmd`로 도구를 빌드하세요. CI는 Windows 2022의 실제 VS 2022 설치를 원본이 요구하는 Professional 경로로 연결한 뒤 도구를 빌드합니다. 이는 임시 CI 환경 설정이며 소스를 변경하지 않습니다.
+전체 회귀 시험에는 DIA 도구와 `samples/PanelHello.dll` 및 일치하는 PDB가 필요합니다. 아래 명령으로 [예제 소스](../../samples/README.md)를 빌드하면 원본 테스트의 외부 경로 의존성을 제거할 수 있습니다. CI는 실제 VS 2022 설치를 원본 Professional 경로에 연결하고 DIA 도구와 예제를 빌드합니다. 원본 소스는 변경하지 않습니다.
 
 ```powershell
 cd kernel_control_panel
+powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
 python -m unittest discover -p 'test*.py' -v
 python test_driver_readonly.py
 ```
 
-첫 명령은 기존 모의 회귀 시험입니다. 두 번째는 실제 로드된 드라이버에 대해 진단 프로세스 자신의 읽기 전용 조회 7개만 수행합니다. `test_driver_all_ioctl.py`도 같은 진단 진입점이며 전체 변경 IOCTL 시험이 아닙니다. [검증 기록](../VALIDATION.md)의 적용 범위를 확인하세요. 공개 이슈에 덤프·개인 PDB·실제 메모리 내용을 올리지 말고 재현용 테스트 데이터를 제공하세요.
+`unittest` 명령은 기존 모의 회귀 시험입니다. `test_driver_readonly.py`는 실제 로드된 드라이버에 대해 진단 프로세스 자신의 읽기 전용 조회 7개만 수행합니다. `test_driver_all_ioctl.py`도 같은 진단 진입점이며 전체 변경 IOCTL 시험이 아닙니다. [검증 기록](../VALIDATION.md)의 적용 범위를 확인하세요. 공개 이슈에 덤프·개인 PDB·실제 메모리 내용을 올리지 말고 재현용 테스트 데이터를 제공하세요.

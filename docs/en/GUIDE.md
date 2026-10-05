@@ -111,12 +111,13 @@ Ordinary transfers are limited to 1MiB, kernel read pieces to 4KiB, ordinary tab
 | PDB failure | DIA SDK, helper build/path and matching GUID/Age |
 | Partial scan/quota | Narrow range and run New; inspect budget, limits and read failures |
 
-Three regressions check that the DIA helper exists, so build it with `native/build_pdb_symbols.cmd` before full discovery. CI maps the actual VS 2022 installation on Windows 2022 to the original Professional path, then builds the helper. This configures the temporary runner without editing source.
+Full discovery needs the DIA helper plus `samples/PanelHello.dll` and its matching PDB. Build the [fixture source](../../samples/README.md) below to avoid the original tests' external-path dependency. CI maps the actual VS 2022 installation to the original Professional path and builds both helper and fixture without editing original source.
 
 ```powershell
 cd kernel_control_panel
+powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
 python -m unittest discover -p 'test*.py' -v
 python test_driver_readonly.py
 ```
 
-The first command runs existing mocked regressions. The second performs seven read-only queries against the diagnostic process itself using the loaded driver. `test_driver_all_ioctl.py` is the same diagnostic entry point, not a full live mutation suite. Consult [validation scope](../VALIDATION.md). Supply synthetic reproductions instead of private dumps, PDBs or real memory contents in public issues.
+The `unittest` command runs existing mocked regressions. `test_driver_readonly.py` performs seven read-only queries against the diagnostic process itself using the loaded driver. `test_driver_all_ioctl.py` is the same diagnostic entry point, not a full live mutation suite. Consult [validation scope](../VALIDATION.md). Supply synthetic reproductions instead of private dumps, PDBs or real memory contents in public issues.

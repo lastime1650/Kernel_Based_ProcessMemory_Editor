@@ -20,6 +20,8 @@
 *.exe
 *.dll
 *.log
+/samples/*.lib
+/samples/*.exp
 # Python caches / 파이썬 캐시 / Python 缓存 / Cachés de Python
 __pycache__/
 *.py[cod]

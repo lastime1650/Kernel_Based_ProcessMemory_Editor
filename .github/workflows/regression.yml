@@ -42,5 +42,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'DIA helper build failed' }
           } finally { Pop-Location }
       - name: "모의 회귀 시험 / Mocked regressions / 模拟回归 / Regresiones simuladas"
-        run: python -m unittest discover -p 'test*.py' -v
+        # Build only; no DLL loading / 빌드만 / 仅构建 / Solo compilar
+        run: |
+          & ../samples/build_fixture.ps1
+          python -m unittest discover -p 'test*.py' -v
 # No driver loading / 드라이버 로드 없음 / 不加载驱动 / Sin carga del controlador

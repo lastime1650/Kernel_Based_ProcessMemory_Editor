@@ -10,7 +10,7 @@
 | x64 Release MSBuild | PASS | 별도 복사본 / Separate copy / 独立副本 / Copia separada |
 | x64 Debug MSBuild | PASS | 별도 복사본 / Separate copy / 独立副本 / Copia separada |
 | DIA `pdb_symbols.cpp` build | PASS | VS 2022 Professional |
-| Clean Git tree regressions after DIA build | PASS: 314 tests | Excluded artifacts absent; required helper built from source |
+| Repository-local fixture regressions | PASS: 314 tests / 5.150s | DIA helper + newly built samples/PanelHello.dll and matching PDB |
 | Loaded driver diagnostics | PASS: 7/7 | v2.2 읽기 전용 / v2.2 read-only / v2.2 只读 / v2.2 solo lectura |
 | Imported source integrity | PASS: 79/79 SHA-256 | 최초 스냅샷 일치 / Matches initial snapshot / 匹配初始快照 / Coincide con original |
 | Source-derived reference | 73 route decorators, 37 IOCTL IDs | `server.py`, `studio_api.py`, `driver_bridge.py` |
@@ -33,12 +33,13 @@ Windows x64; Python 3.14.5; Visual Studio 2022 Professional; SDK 10.0.26100.0; W
 
 ```powershell
 cd kernel_control_panel
+powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
 python -m unittest discover -p 'test*.py' -v
 python test_driver_readonly.py
 ```
 
 ```text
-Ran 314 tests in 6.381s
+Ran 314 tests in 5.150s
 OK
 
 PASS: driver_status
@@ -75,10 +76,10 @@ Las pruebas se ejecutaron en la copia sin escribir en el original. La firma loca
 
 ## 깨끗한 체크아웃 / Clean checkout / 干净检出 / Checkout limpio
 
-전체 회귀 시험 중 3개는 DIA 도구 파일의 존재를 검사하므로 시험 전에 `native/build_pdb_symbols.cmd`로 도구를 빌드하세요. CI는 Windows 2022의 실제 VS 2022 설치를 원본이 요구하는 Professional 경로로 연결한 뒤 도구를 빌드합니다. 이는 임시 CI 환경 설정이며 소스를 변경하지 않습니다.
+원본 테스트는 로컬 DLL/PDB 예제에 의존합니다. 공개 저장소의 [samples](../samples/README.md)에 보조 소스와 재현 빌드를 추가했습니다. 전체 시험 전에 DIA 도구와 예제를 빌드하세요. 초기 CI에서는 이 외부 예제 의존성이 누락되어 실패했고, 예제 빌드를 추가해 해결했습니다. [GitHub CI 실행 기록](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml)에서 원격 결과를 확인할 수 있습니다.
 
-Three regressions check that the DIA helper exists, so build it with `native/build_pdb_symbols.cmd` before full discovery. CI maps the actual VS 2022 installation on Windows 2022 to the original Professional path, then builds the helper. This configures the temporary runner without editing source.
+Original tests depend on a local DLL/PDB fixture. The public repository adds support source and a reproducible build in [samples](../samples/README.md). Build the DIA helper and fixture before full discovery. Initial CI failed because the external fixture was missing; the added fixture build resolves that dependency. Remote results are recorded in [GitHub CI](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml).
 
-其中 3 项回归检查 DIA 工具文件是否存在，完整测试前需运行 `native/build_pdb_symbols.cmd`。CI 将 Windows 2022 中实际 VS 2022 安装映射至原代码要求的 Professional 路径，再构建工具。只配置临时运行环境，不修改源码。
+原测试依赖本地 DLL/PDB 样例。公开仓库的 [samples](../samples/README.md) 新增辅助源码及可重现构建。完整测试前需构建 DIA 工具和样例。初次 CI 因外部样例缺失失败，新增样例构建解决了依赖。远程结果见 [GitHub CI](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml)。
 
-Tres regresiones comprueban la existencia del auxiliar DIA; compílelo con `native/build_pdb_symbols.cmd` antes de ejecutar todas. CI enlaza la instalación real de VS 2022 en Windows 2022 a la ruta Professional original y compila el auxiliar. Configura el ejecutor temporal sin editar código.
+Las pruebas originales dependen de un DLL/PDB local. El repositorio añade código auxiliar y compilación reproducible en [samples](../samples/README.md). Compile el auxiliar DIA y el ejemplo antes de ejecutar todas las pruebas. El CI inicial falló por la ausencia del ejemplo externo; su compilación añadida resuelve la dependencia. Consulte los resultados remotos en [GitHub CI](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml).

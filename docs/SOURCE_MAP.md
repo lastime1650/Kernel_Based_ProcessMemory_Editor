@@ -134,3 +134,7 @@ English: The full folder was copied locally; generated and user data above are e
 简体中文：完整目录已复制到本地，以上生成/用户数据不公开追踪。只添加文档和设置，未编辑导入源码。哈希：[SOURCE_SHA256.tsv](reference/SOURCE_SHA256.tsv)。
 
 Español: Se copió toda la carpeta localmente y se excluyen datos generados/de usuario del seguimiento público. Solo se añadieron documentación/configuración; el código importado no se editó. Hashes: [SOURCE_SHA256.tsv](reference/SOURCE_SHA256.tsv).
+
+## 추가 시험 예제 / Added fixture / 新增测试样例 / Ejemplo añadido
+
+[samples/README.md](../samples/README.md): 원본 79개 파일과 별개인 예제 소스·빌드 / Fixture source and build separate from the 79 imported files / 与 79 个原文件分开的样例源码和构建 / Código y compilación del ejemplo separados de los 79 originales.
