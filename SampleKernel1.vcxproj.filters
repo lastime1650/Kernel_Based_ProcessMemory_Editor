@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Driver Files">
+      <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
+      <Extensions>inf;inv;inx;mof;mc;</Extensions>
+    </Filter>
+    <Filter Include="main">
+      <UniqueIdentifier>{bc7b703e-4553-4132-a5da-ddcc9da5663c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{b71e8a48-e5a1-46c4-94ae-da8ad7043505}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="SampleKernel1.inf">
+      <Filter>Driver Files</Filter>
+    </Inf>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="utils.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="helper.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="ioctl_helper.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,51 @@
+# IDE / 개발환경 / 开发环境 / Entorno de desarrollo
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.VC.db*
+*.ipch
+# Build outputs / 빌드 결과 / 构建产物 / Resultados de compilación
+/x64/
+/ARM64/
+/Debug/
+/Release/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.sys
+*.cat
+*.exe
+*.dll
+*.log
+# Python caches / 파이썬 캐시 / Python 缓存 / Cachés de Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+# Runtime data / 실행 기록 / 运行数据 / Datos de ejecución
+/kernel_control_panel/assets/
+/kernel_control_panel/symbols/
+/kernel_control_panel/workspaces/
+/kernel_control_panel/dumps/
+/kernel_control_panel/static/reports/
+*.sqlite
+*.sqlite-*
+*.part
+# Local secrets / 로컬 비밀정보 / 本地机密 / Secretos locales
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+# OS metadata / OS 임시파일 / 系统临时文件 / Archivos temporales
+Thumbs.db
+Desktop.ini
+.DS_Store

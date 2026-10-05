@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "사용 안내 / Guides / 指南 / Guías"
+    url: https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/tree/main/docs
+    about: "설치·사용·문제 해결 / Setup, usage, troubleshooting / 安装、使用、排查 / Instalación, uso y diagnóstico"
+  - name: "보안 / Security / 安全 / Seguridad"
+    url: https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/blob/main/SECURITY.md
+    about: "민감 정보 공개 금지 / Do not disclose sensitive data / 不公开敏感信息 / No publique datos sensibles"
