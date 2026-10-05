@@ -1,5 +1,12 @@
 # 변경 기록 / Changelog / 修改记录 / Registro de cambios
 
+## 2026-10-06 — All-in-one README expansion
+
+- 한국어: 네 언어 README를 전체 구현 설명서로 확장했습니다. 7개 설계도, 79개 Studio 동작, 기본 UI 정의 76개, 세션 action, 37개 IOCTL, 45개 ABI 구조/337개 필드, 네이티브 보조 구조, 요청 모델과 전체 74개 경로를 본문에 넣었습니다. 누락된 PUT 자산 업로드 경로를 API 목록에 추가했습니다. 원본 소스는 변경하지 않았습니다.
+- English: Expanded all four READMEs with seven diagrams, 79 Studio operations, 76 base UI tools, session actions, 37 IOCTLs, 45 ABI layouts/337 fields, native support structures, request models and all 74 routes. Restored the omitted PUT asset-upload route in the reference. Original source remains unchanged.
+- 简体中文：四语 README 扩展为完整实现文档，包含 7 图、79 Studio 操作、76 基础 UI、会话 action、37 IOCTL、45 ABI/337 字段、原生辅助结构、请求模型及全部 74 路由。补入遗漏 PUT 上传，原源码未改。
+- Español: Ampliación de cuatro README: siete diagramas, 79 operaciones, 76 herramientas UI, acciones de sesión, 37 IOCTL, 45 estructuras ABI/337 campos, estructuras nativas, modelos y 74 rutas. Se añadió PUT de archivos omitido; código original intacto.
+
 ## 2026-10-06 — Source import and documentation
 
 ### 한국어

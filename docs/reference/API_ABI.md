@@ -45,6 +45,7 @@ Español: Inventario completo extraído de decoradores y definiciones IOCTL. Las
 | POST | `/api/studio/allocation-histories` | [create_allocation_history](../../kernel_control_panel/studio_api.py#L763) |
 | DELETE | `/api/studio/allocation-histories/{key}` | [remove_allocation_history](../../kernel_control_panel/studio_api.py#L768) |
 | POST | `/api/studio/allocation-histories/{key}/{action}` | [allocation_history_action](../../kernel_control_panel/studio_api.py#L771) |
+| PUT | `/api/studio/assets/{kind}` | [upload_asset](../../kernel_control_panel/studio_api.py#L858) |
 | GET | `/api/studio/capabilities` | [capabilities](../../kernel_control_panel/studio_api.py#L834) |
 | GET | `/api/studio/dump` | [dump](../../kernel_control_panel/studio_api.py#L887) |
 | GET | `/api/studio/dumps` | [list_dumps](../../kernel_control_panel/studio_api.py#L905) |
@@ -157,3 +158,9 @@ English: Preserve pack=8 and zero reserved fields. Kernel limits: 128 records, 3
 简体中文：保持 pack=8，保留字段为零。内核最多 128 条记录、每设备文件 32 条；网页最多 30 个活动跟踪和 128 条历史。用 `ThreadCreated` 判断是否已创建执行，完成由线程信号判断。观察失败后不要自动重新创建。
 
 Español: Conserve pack=8 y campos reservados a cero. Límites kernel: 128 registros, 32 por archivo; web: 30 llamadas activas y 128 de historial. `ThreadCreated` indica creación; la finalización usa señalización del hilo. No recree automáticamente ante fallo de observación.
+
+## 전체 구조 설명 / Complete layouts / 完整结构 / Estructuras completas
+
+74 HTTP/WebSocket decorators · 37 IOCTL IDs · 45 ctypes layouts · 337 fields.
+
+[한국어 올인원 README](../../README.md#layouts) · [English](../../README.en.md#layouts) · [简体中文](../../README.zh-CN.md#layouts) · [Español](../../README.es.md#layouts)

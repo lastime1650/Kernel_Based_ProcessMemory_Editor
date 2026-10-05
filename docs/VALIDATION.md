@@ -13,7 +13,7 @@
 | Repository-local fixture regressions | PASS: 314 tests / 5.150s | DIA helper + newly built samples/PanelHello.dll and matching PDB |
 | Loaded driver diagnostics | PASS: 7/7 | v2.2 읽기 전용 / v2.2 read-only / v2.2 只读 / v2.2 solo lectura |
 | Imported source integrity | PASS: 79/79 SHA-256 | 최초 스냅샷 일치 / Matches initial snapshot / 匹配初始快照 / Coincide con original |
-| Source-derived reference | 73 route decorators, 37 IOCTL IDs | `server.py`, `studio_api.py`, `driver_bridge.py` |
+| Source-derived reference | 74 route decorators, 37 IOCTL IDs | `server.py`, `studio_api.py`, `driver_bridge.py` |
 | UI observation | 4 screenshots | `http://127.0.0.1:8005/`, no selected target |
 
 ## 환경 / Environment / 环境 / Entorno
