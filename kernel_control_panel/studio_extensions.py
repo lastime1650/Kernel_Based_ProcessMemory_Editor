@@ -119,8 +119,24 @@ def operate(studio, operation, args, cancelled):
         expression = str(args.get('expression', '')).strip()
         modules = studio.operate('modules', {'pid': pid})['results']
         def module(name):
-            matches = [m for m in modules if PureWindowsPath(m['path'] or m['name']).name.casefold() in
-                       (name.casefold(), name.casefold()+'.dll')]
+            selector, marker, explicit = name.rpartition('@')
+            wanted_base = address(explicit) if marker else address(name) if name.lower().startswith('0x') else None
+            wanted_name = selector if marker else name
+            if wanted_base is not None and not marker:
+                matches = [m for m in modules if integer(m['address']) == wanted_base]
+            elif wanted_name.casefold() == 'main':
+                matches = [m for m in modules if m.get('main_image')]
+            else:
+                matches = [m for m in modules if PureWindowsPath(m.get('path') or m['name']).name.casefold() in
+                           (wanted_name.casefold(), wanted_name.casefold()+'.dll')]
+            if wanted_base is not None:
+                matches = [m for m in matches if integer(m['address']) == wanted_base]
+            elif len(matches) > 1:
+                # A PE copy in committed private memory is a separate image, but
+                # it must not shadow the uniquely named, kernel-mapped module.
+                mapped = [m for m in matches if m.get('source', m.get('memory_type')) == 'MEM_IMAGE']
+                if len(mapped) == 1:
+                    matches = mapped
             if len(matches) != 1: raise ValueError(f'로드된 모듈을 고유하게 찾을 수 없습니다: {name}')
             return matches[0]
         trace, seen = [], set()
@@ -133,7 +149,8 @@ def operate(studio, operation, args, cancelled):
                 matches = [r for r in pe.exports() if r['name'] == symbol or
                            (symbol.startswith('#') and str(r['ordinal']) == symbol[1:])]
                 if len(matches) != 1: raise ValueError(f'내보내기 함수를 찾을 수 없습니다: {symbol}')
-                row = matches[0];trace.append({'expression': expression, **row})
+                row = matches[0];trace.append({'expression': expression, 'module_base':m['address'],
+                                              'image_source':m.get('source',m.get('memory_type')), **row})
                 if row['forwarder']:
                     if '.' not in row['forwarder']: raise ValueError('전달 내보내기 형식 오류')
                     name, symbol = row['forwarder'].rsplit('.', 1)

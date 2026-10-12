@@ -7,6 +7,15 @@ import uuid
 import os
 import re
 from request_scheduler import scope, source
+from atomic_metadata import write_json
+
+class JournalPersistenceError(OSError):
+    def __init__(self, path, record, cause):
+        self.journal_state = {'journal_id':record['id'], 'journal_path':str(path),
+            'write_attempted':record.get('status')!='prepared',
+            'write_response':record.get('write_response'),
+            'observed_hex':record.get('observed'), 'journal_status':record.get('status')}
+        super().__init__('변경 기록 저장 실패. write_attempted와 observed_hex를 확인한 뒤 다시 읽으세요: '+str(cause))
 
 class Journal:
     def __init__(self, studio, root):
@@ -18,10 +27,9 @@ class Journal:
                 if r['id']==path.stem: self.records[r['id']]=r
             except (OSError,ValueError,KeyError,TypeError): continue
     def persist(self,record):
-        path=self.root/(record['id']+'.json');temp=path.with_suffix('.tmp')
-        with temp.open('w',encoding='utf-8') as stream:
-            json.dump(record,stream,ensure_ascii=False);stream.flush();os.fsync(stream.fileno())
-        temp.replace(path)
+        path=self.root/(record['id']+'.json')
+        try:write_json(path,record,durable=True)
+        except OSError as exc:raise JournalPersistenceError(path,record,exc) from exc
     def install(self):
         driver=self.studio.driver
         if not hasattr(driver,'write_process_memory'):return

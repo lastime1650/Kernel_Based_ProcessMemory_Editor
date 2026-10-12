@@ -9,11 +9,15 @@ import subprocess
 import threading
 import time
 import uuid
+import os
+from runtime_paths import bundle_root, data_path
 
 import studio_extensions as E
 import memory_images as M
+import decompiler_metadata as DM
+import public_symbols as PS
 
-OPERATIONS = ['image_catalog','image_functions','image_function_detail','dll_load_verified',
+OPERATIONS = ['image_catalog','image_functions','image_function_detail','image_public_symbols','dll_load_verified',
               'dll_load_check','function_call','function_calls','function_call_query','function_call_release']
 MAX_FUNCTIONS=20000
 MAX_PDB_BYTES=256*1024*1024
@@ -32,13 +36,16 @@ def same_image_path(image,path):
     return bool(actual) and str(PureWindowsPath(actual)).casefold()==str(PureWindowsPath(path)).casefold()
 
 class CachedImageReader:
-    def __init__(self,studio,pid,base):self.studio,self.pid,self.base,self.size,self.pages=studio,pid,base,0x40000000,{}
+    def __init__(self,studio,pid,base,max_pages=None):
+        self.studio,self.pid,self.base,self.size,self.pages=studio,pid,base,0x40000000,{}
+        self.max_pages=max_pages
     def read_bytes(self,pid,start,size):
         if pid!=self.pid or start<self.base or size<1 or start+size>self.base+self.size:raise ValueError('이미지 읽기 범위 오류')
         pieces=[]
         while size:
             page=start&~4095;offset=start-page
             if page not in self.pages:
+                if self.max_pages is not None and len(self.pages)>=self.max_pages:raise ValueError('메타데이터 이미지 읽기 상한 초과')
                 count=min(4096,self.base+self.size-page)
                 self.pages[page]=self.studio.read_bytes(pid,page,count)
             count=min(size,len(self.pages[page])-offset)
@@ -48,10 +55,11 @@ class CachedImageReader:
 
 class Symbols:
     def __init__(self,root=None):
-        self.root=Path(root or Path(__file__).parent/'symbols').resolve()
+        self.root=Path(root or data_path('symbols')).resolve()
         self.root.mkdir(parents=True,exist_ok=True);self.lock=threading.RLock();self.cache={}
-        self.helper=Path(__file__).parent/'native/pdb_symbols.exe'
-        self.dia=Path(r'C:\Program Files\Microsoft Visual Studio\2022\Professional\DIA SDK\bin\amd64\msdia140.dll')
+        self.helper=bundle_root()/'native/pdb_symbols.exe'
+        self.dia=Path(os.environ.get('KERNEL_STUDIO_DIA_DLL') or
+                      r'C:\Program Files\Microsoft Visual Studio\2022\Professional\DIA SDK\bin\amd64\msdia140.dll')
         index=self.root/'index.json'
         if index.is_file():
             try:
@@ -72,7 +80,12 @@ class Symbols:
     def persist(self):
         temp=self.root/'index.tmp'
         temp.write_text(json.dumps(list(self.cache)),encoding='utf-8');temp.replace(self.root/'index.json')
-    def load(self,path,display_name=None,owned=False):
+    @staticmethod
+    def verify_identity(record,expected):
+        if expected and (record.get('guid','').strip('{}').lower()!=expected['guid'].strip('{}').lower() or
+                         record.get('age')!=expected['age']):
+            raise ValueError('PDB GUID·Age가 선택한 이미지와 일치하지 않습니다')
+    def load(self,path,display_name=None,owned=False,expected=None):
         path=Path(path).resolve()
         if path.suffix.lower()!='.pdb' or not path.is_file() or not 0<path.stat().st_size<=MAX_PDB_BYTES:raise ValueError('256MB 이하 PDB 파일이 필요합니다')
         if not self.helper.is_file() or not self.dia.is_file():raise ValueError('DIA PDB 분석 도구를 찾을 수 없습니다')
@@ -81,6 +94,7 @@ class Symbols:
         with self.lock:
             for key,record in self.cache.items():
                 if record['sha256']==digest:
+                    self.verify_identity(record,expected)
                     if 'structures' in record:return self.public(key,record)
                     upgrade=key
                     if display_name is None:display_name=record['name']
@@ -94,12 +108,15 @@ class Symbols:
         try:result=json.loads(run.stdout)
         except (ValueError,UnicodeError):raise ValueError(f'PDB 분석 도구 오류: 0x{run.returncode&0xffffffff:08X}')
         if run.returncode or not result.get('success'):raise ValueError('PDB 분석 실패: '+str(result.get('error','DIA 오류')))
+        self.verify_identity(result,expected)
         if self.digest(path)!=digest:raise ValueError('분석 중 PDB 파일이 변경되었습니다')
         result.update(name=display_name or path.name,sha256=digest,path=str(path),owned=owned,guid=result['guid'].strip('{}').lower())
         key=upgrade or uuid.uuid4().hex
         with self.lock:
             for existing,record in self.cache.items():
-                if record['sha256']==digest and 'structures' in record:return self.public(existing,record)
+                if record['sha256']==digest and 'structures' in record:
+                    self.verify_identity(record,expected)
+                    return self.public(existing,record)
             if len(self.cache)>=8 and not upgrade:raise ValueError('PDB 저장 상한 초과')
             self.cache[key]=result
             try:
@@ -127,7 +144,7 @@ class Symbols:
                 raise
         if record:
             path=Path(record['path'])
-            if record.get('owned') and path.parent==self.root:path.unlink(missing_ok=True)
+            if record.get('owned') and self.root in path.resolve().parents:path.unlink(missing_ok=True)
             (self.root/(key+'.json')).unlink(missing_ok=True)
         return record is not None
 
@@ -173,8 +190,10 @@ class Workbench:
             table=pe.read(offset+24+optional,section_count*40)
             for i in range(section_count):
                 part=table[i*40:(i+1)*40];size,rva,raw=struct.unpack_from('<III',part,8)
+                flags=struct.unpack_from('<I',part,36)[0]
                 sections.append({'name':part[:8].split(b'\0',1)[0].decode('ascii',errors='replace'),
-                    'start':rva,'end':min(pe.size,rva+max(size,raw)),'executable':bool(struct.unpack_from('<I',part,36)[0]&0x20000000)})
+                    'start':rva,'end':min(pe.size,rva+max(size,raw)),'executable':bool(flags&0x20000000),
+                    'readable':bool(flags&0x40000000),'writable':bool(flags&0x80000000)})
         def executable(rva):return next((s['name'] for s in sections if s['executable'] and s['start']<=rva<s['end']),None)
         rows={};data_exports=[]
         def add(rva,end=0,source='unwind',name=''):
@@ -205,17 +224,23 @@ class Workbench:
                 add(begin,end)
         entry=struct.unpack_from('<I',header,offset+40)[0]
         add(entry,source='entry')
-        cv=self.codeview(pe);symbol_record=None
+        cv=self.codeview(pe);symbol_record=None;function_prototypes={}
         if pdb_id:
             symbol_record=self.symbols.get(pdb_id)
             if not cv or cv['guid'].lower()!=symbol_record['guid'].lower() or cv['age']!=symbol_record['age']:
                 raise ValueError('PDB GUID·Age가 로드된 이미지와 일치하지 않습니다')
             for symbol in symbol_record['functions']:
                 row=add(symbol['rva'],symbol['rva']+symbol.get('size',0),symbol['source'],symbol['name'])
+                if row:
+                    proto=DM.pdb_prototype(symbol,pe.width*8)
+                    existing=function_prototypes.get(base+symbol['rva'])
+                    if not existing or (not existing.get('valid') and proto.get('valid')):
+                        function_prototypes[base+symbol['rva']]=proto
                 if not row or not symbol.get('types_available'):continue
                 params=symbol['parameters'];ret=symbol.get('return',{})
                 row['typed_parameters']=params;row['parameter_source']='pdb';row['calling_convention']=symbol.get('calling_convention')
-                row['parameters']=', '.join(p['type']+' '+p.get('name','') for p in params) or '(void)'
+                row['return']=ret;row['requires_object']=symbol.get('requires_object',False)
+                row['parameters']=', '.join(p['type']+' '+p.get('name','') for p in params) or 'void'
                 row['signature']=ret.get('type','unknown')+' '+row['name']+'('+row['parameters']+')'
                 row['call_compatible']=(not symbol.get('requires_object') and len(params)<=1 and
                     all(p['kind'] in ('integer','pointer') and 0<p.get('size',0)<=8 for p in params) and
@@ -225,11 +250,28 @@ class Workbench:
         record={'id':key,'pid':pid,'identity':identity,'base':base,'size':pe.size,'bits':pe.width*8,
             'image':image,'header_sha256':hashlib.sha256(header).hexdigest(),'codeview':cv,'pdb_id':pdb_id,
             'rows':sorted(rows.values(),key=lambda r:number(r['rva'])),'forwarders':forwarders,'data_exports':data_exports,
+            'sections':sections,'function_prototypes':function_prototypes,
             'created':time.time(),'truncated':unwind_truncated or len(rows)>=MAX_FUNCTIONS or bool(symbol_record and symbol_record.get('truncated'))}
         with self.lock:
             self.analyses[key]=record
             while len(self.analyses)>16:self.analyses.popitem(last=False)
         return self.table(record)
+    def public_symbols(self,pid,base):
+        _,identity=self.find_image(pid,base)
+        reader=CachedImageReader(self.studio,pid,base,max_pages=32)
+        pe=E.LoadedPE(reader,pid,base);reader.size=pe.size
+        header=reader.read_bytes(pid,base,min(4096,pe.size))
+        codeview=self.codeview(pe)
+        if not codeview:raise ValueError('이미지에 CodeView 식별자가 없어 공개 심볼을 선택할 수 없습니다. PDB 없이 분석하세요.')
+        def validate(path):
+            current=CachedImageReader(self.studio,pid,base,max_pages=32);current.size=pe.size
+            if self.studio.identity(pid)!=identity or current.read_bytes(pid,base,len(header))!=header:
+                raise ValueError('공개 심볼 조회 중 프로세스 또는 이미지가 변경되었습니다')
+            current_pe=E.LoadedPE(current,pid,base)
+            if self.codeview(current_pe)!=codeview:raise ValueError('공개 심볼 조회 중 이미지 식별자가 변경되었습니다')
+            return self.symbols.load(path,owned=True,expected=codeview)
+        return dict(PS.fetch(codeview,self.symbols.root,validate),success=True,
+                    note='Microsoft 공개 PDB입니다. 제공된 이름·형식만 적용하며 없는 지역변수·원형은 명령어 추론을 유지합니다.')
     def table(self,record):return {'success':True,'analysis_id':record['id'],'pid':record['pid'],
         'process_start_key':record['identity'],'image':record['image'],'bits':record['bits'],'codeview':record['codeview'],
         'pdb_id':record['pdb_id'],'count':len(record['rows']),'results':record['rows'],
@@ -255,17 +297,34 @@ class Workbench:
         extent=row['size'] or min(512,following-addr)
         count=min(V.MAX_BYTES,extent,record['base']+record['size']-addr)
         raw=self.studio.read_bytes(record['pid'],addr,count)
+        # A separate bounded reader limits metadata fetches to 128 image pages.
+        # Failure enriches the diagnostics; byte-level analysis remains usable.
+        metadata_reader=CachedImageReader(self.studio,record['pid'],record['base'],max_pages=128)
+        metadata_reader.size=record['size']
+        context=dict(record,import_symbols={},metadata_notes=[])
+        try:
+            metadata_pe=E.LoadedPE(metadata_reader,record['pid'],record['base'])
+            imports,imports_truncated=metadata_pe.imports()
+            context['import_symbols']={number(r['address']):DM.import_symbol(r,record['bits']) for r in imports}
+            if imports_truncated:context['metadata_notes'].append('가져오기 메타데이터 상한 적용')
+        except (OSError,ValueError):
+            context['metadata_notes'].append('가져오기 메타데이터를 읽지 못해 미확인 호출을 유지했습니다')
+        metadata=DM.collect(raw,addr,record['bits'],context,metadata_reader)
+        metadata['function']=record.get('function_prototypes',{}).get(addr,{'name':row['name'],'valid':False})
+        DM.infer_callees(raw,addr,record['bits'],context,metadata_reader,metadata)
         views=V.analyze(raw,addr,record['bits'],row['name'],
-                        {number(r['address']):r['name'] for r in record['rows']})
+                        {number(r['address']):r['name'] for r in record['rows']},metadata=metadata)
         used=set(views['argument_registers'])
         hint='진입 시 읽는 인자 후보: '+(', '.join(x for x in ('RCX','RDX','R8','R9') if x in used) or '확인되지 않음')
         if self.studio.identity(pid)!=record['identity']:raise ValueError('상세 분석 중 프로세스가 교체되었습니다')
         views['graph']['range_known']=bool(row['size'])
         views['graph']['byte_limit_applied']=extent>count
+        views['graph']['notes'].extend(metadata['notes'])
         if extent>count:views['graph']['notes'].append('함수 바이트 조회 상한 적용')
         if not row['size']:views['graph']['notes'].append('함수 크기가 미확인되어 제한된 추정 범위를 분석했습니다')
         if row.get('parameter_source')=='pdb' and row.get('signature'):
             views['pseudocode']['pdb_signature']=row['signature']
+        views['pseudocode']['inference']=metadata.get('function',{})
         return {'success':True,'function':row,**views,'data_hex':raw.hex(),
             'argument_hint':hint if record['bits']==64 else 'x86 매개변수는 PDB 형식을 참고하세요',
             'note':'Capstone 결과는 정적 추정이며 매개변수 개수·형식의 보장이 아닙니다.'}
@@ -373,6 +432,7 @@ class Workbench:
         if not 0<pid<=0xffffffff:raise ValueError('선택한 프로세스 PID가 필요합니다')
         if operation=='image_catalog':return self.images(pid)
         if operation=='image_functions':return self.analyze(pid,number(args['base']),str(args.get('pdb_id','')))
+        if operation=='image_public_symbols':return self.public_symbols(pid,number(args['base']))
         if operation=='image_function_detail':return self.detail(args['analysis_id'],number(args['address']),pid)
         if operation=='dll_load_verified':return self.load(pid,args['path'],number(args.get('wait_ms',8000)))
         if operation=='dll_load_check':return self.check_load(args['id'],pid)

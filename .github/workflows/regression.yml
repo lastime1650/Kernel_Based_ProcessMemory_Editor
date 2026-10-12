@@ -1,4 +1,4 @@
-name: "회귀 검증 / Regression / 回归 / Regresión"
+name: "Windows regressions · mocked target access"
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   windows-regression:
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         shell: pwsh
@@ -24,11 +24,14 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.14'
-      - name: "의존성 / Dependencies / 依赖 / Dependencias"
-        run: python -m pip install -r requirements.txt
-      - name: "DIA 도구 준비 / Prepare DIA helper / 准备 DIA 工具 / Preparar DIA"
+      - name: Install Python dependencies
         run: |
-          $vsLocator = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          python -m pip install -r requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+      - name: Prepare DIA helper and source fixture
+        # Builds and analyzes a local DLL/PDB fixture; never loads it into a target.
+        run: |
+          $vsLocator = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
           $vsInstall = & $vsLocator -latest -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vsInstall) { throw 'Visual Studio 2022 C++ tools unavailable' }
           $vsCompat = 'C:\Program Files\Microsoft Visual Studio\2022\Professional'
@@ -41,9 +44,32 @@ jobs:
             & .\build_pdb_symbols.cmd
             if ($LASTEXITCODE -ne 0) { throw 'DIA helper build failed' }
           } finally { Pop-Location }
-      - name: "모의 회귀 시험 / Mocked regressions / 模拟回归 / Regresiones simuladas"
-        # Build only; no DLL loading / 빌드만 / 仅构建 / Solo compilar
-        run: |
           & ../samples/build_fixture.ps1
+      - name: Python mocked regressions
+        run: |
           python -m unittest discover -p 'test*.py' -v
-# No driver loading / 드라이버 로드 없음 / 不加载驱动 / Sin carga del controlador
+          if ($LASTEXITCODE -ne 0) { throw 'Python regressions failed' }
+      - name: Node mocked DOM regressions
+        run: |
+          node --version
+          if ($LASTEXITCODE -ne 0) { throw 'Node.js unavailable' }
+          $uiSuites = Get-ChildItem -File -Filter 'test*_ui.js' | Sort-Object Name
+          if ($uiSuites.Count -ne 5) { throw 'Expected five standalone DOM suites' }
+          $sourceArguments = @{
+            'test_eprocess_workspace_ui.js' = 'static/eprocess_workspace.js'
+            'test_process_object_ui.js' = 'static/studio.js'
+          }
+          foreach ($suite in $uiSuites) {
+            if ($sourceArguments.ContainsKey($suite.Name)) {
+              node $suite.FullName $sourceArguments[$suite.Name]
+            } else {
+              node $suite.FullName
+            }
+            if ($LASTEXITCODE -ne 0) { throw "DOM regression failed: $($suite.Name)" }
+          }
+      - name: Current native mapper with mock DDIs
+        run: |
+          python native/manual_map/run_selftest.py --output build/manual_map-selftest
+          if ($LASTEXITCODE -ne 0) { throw 'Native mapper regressions failed' }
+
+# No WDK driver build, signing, driver loading, or live target memory operations.

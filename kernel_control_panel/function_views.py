@@ -181,6 +181,18 @@ def safe_name(name):
     return result if result and not result[0].isdigit() else 'sub_' + result
 
 
+def code_tokens(text, transform):
+    """Rewrite code identifiers without touching literals or comments."""
+    parts = re.split(r'("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*[\s\S]*?\*/|//[^\n]*)', text)
+    return ''.join(part if index % 2 else transform(part) for index, part in enumerate(parts))
+
+
+def variable_refs(text):
+    result = set()
+    code_tokens(text, lambda part: result.update(re.findall(r'\bv\d+\b', part)) or part)
+    return result
+
+
 class Lifter:
     def __init__(self, blocks, graph, bits, names):
         self.blocks, self.graph, self.bits, self.names = blocks, graph, bits, names
@@ -327,6 +339,10 @@ class Lifter:
                 if ins.mnemonic == 'push' and sp is not None and ins.operands[0].size == word: accesses.add((sp-word,word))
                 if ins.mnemonic == 'pop' and sp is not None and ins.operands[0].size == word: accesses.add((sp,word))
                 for op in ins.operands:
+                    # LEA forms an address; its operand width is not a memory
+                    # access and must not create a false overlapping local.
+                    if ins.mnemonic == 'lea':
+                        continue
                     if op.type != X86_OP_MEM or op.mem.index or op.mem.segment or not op.mem.base or ins.addr_size*8 != self.bits:
                         continue
                     base = family(ins.reg_name(op.mem.base))
@@ -594,6 +610,8 @@ def pseudocode(lifter, name, graph, dominators):
     def terminal(key):
         last = blocks[key]['instructions'][-1]
         if last.mnemonic.startswith('ret'):
+            if hasattr(lifter, 'return_statement'):
+                return [lifter.return_statement(key)]
             # Machine return register; source return type is not inferred.
             lifter.current_ins = last
             return ['return ' + lifter.register('rax' if lifter.bits == 64 else 'eax') + ';']
@@ -640,13 +658,30 @@ def pseudocode(lifter, name, graph, dominators):
                 code += ['while (1) {'] + ['    '+line for line in nested] + ['}']
                 current = after
                 continue
+            if current in loops and block['terminal'] != 'condition':
+                members = loops[current]
+                exits = {e['target'] for node in members for e in outgoing[node] if e['target'] not in members}
+                if not exits and len(edges) == 1 and edges[0]['target'] in members:
+                    nested = list(statements)
+                    if edges[0]['target'] != current:
+                        nested += emit(edges[0]['target'], current, members-{current}, seen, depth+1, (current, None))
+                    code += ['while (1) {'] + ['    '+line for line in nested] + ['}']
+                    break
             code += statements
+            if hasattr(lifter,'tail_statement') and lifter.tail_statement(current):
+                code += lifter.tail_statement(current)
+                break
             if block['terminal'] in ('return','stop'):
                 code += terminal(current)
                 break
             if block['terminal'] == 'condition' and len(edges) == 2:
                 true = next(e['target'] for e in edges if e['kind'] == 'true')
                 false = next(e['target'] for e in edges if e['kind'] == 'false')
+                tail=lifter.branch_tail_statement(current) if hasattr(lifter,'branch_tail_statement') else None
+                if true not in blocks and false in blocks and tail:
+                    code+=['if ('+last._pseudo_condition+') {']+['    '+line for line in tail]+['}']
+                    current=false
+                    continue
                 if true not in blocks or false not in blocks: raise CannotStructure()
                 common = (post[true] & post[false]) - {current}
                 candidates = common & (allowed | {stop,exit_id})
@@ -689,6 +724,9 @@ def pseudocode(lifter, name, graph, dominators):
                     label = 'loc_' + edge['target'][2:] if edge['target'] in blocks else 'unresolved_' + key[2:]
                     body.append(('    if ('+last._pseudo_condition+') ' if edge['kind']=='true' else '    ') + 'goto '+label+';')
             elif edges:
+                if hasattr(lifter,'tail_statement') and lifter.tail_statement(key):
+                    body += ['    '+line for line in lifter.tail_statement(key)]
+                    continue
                 edge = edges[0]
                 if edge['target'] in blocks: body.append('    goto loc_' + edge['target'][2:] + ';')
                 else:
@@ -696,7 +734,8 @@ def pseudocode(lifter, name, graph, dominators):
                     body.append('    return unknown_control_transfer();')
         for key, block in blocks.items():
             if block['terminal'] == 'condition' and any(e['target'] not in blocks for e in outgoing[key]):
-                body += ['unresolved_'+key[2:]+':','    return unknown_control_transfer();']
+                tail=lifter.branch_tail_statement(key) if hasattr(lifter,'branch_tail_statement') else None
+                body += ['unresolved_'+key[2:]+':']+['    '+line for line in (tail or ['return unknown_control_transfer();'])]
     if not blocks: body = ['/* 해석 가능한 명령어가 없습니다. */','return unknown_return();']
     # Hide flags that no displayed condition observes, then remove unused
     # declarations and renumber locals consecutively for the C view.
@@ -704,40 +743,55 @@ def pseudocode(lifter, name, graph, dominators):
     non_flag_lines = [line for line in body if not line.lstrip().startswith(flags_prefix)]
     if not any(re.search(r'\b'+lifter.flags+r'\b',line) for line in non_flag_lines):
         body = non_flag_lines
-    used = set(re.findall(r'\bv\d+\b','\n'.join(body)))
+    if hasattr(lifter, 'optimize'):
+        body = lifter.optimize(body)
+    used = variable_refs('\n'.join(body))
     for _ in range(len(lifter.variables)):
-        dependencies = set().union(*(set(re.findall(r'\bv\d+\b',v['initial'] or ''))
+        dependencies = set().union(*(variable_refs(v['initial'] or '')
                                      for v in lifter.variables if v['name'] in used)) if used else set()
         if dependencies <= used: break
         used |= dependencies
     variables = [dict(v) for v in lifter.variables if v['name'] in used]
     renamed = {v['name']:'v'+str(index+1) for index,v in enumerate(variables)}
-    def rename(text): return re.sub(r'\bv\d+\b',lambda match:renamed.get(match[0],match[0]),text)
+    def rename(text): return code_tokens(text, lambda part: re.sub(r'\bv\d+\b',lambda match:renamed.get(match[0],match[0]),part))
     body = [rename(line) for line in body]
     for variable in variables:
         variable['name'] = renamed[variable['name']]
         if variable['initial'] is not None: variable['initial'] = rename(variable['initial'])
     argument_indices = set(lifter.input_args.values()) | lifter.stack_args
     arguments = ', '.join('uint'+str(lifter.bits)+'_t a'+str(i) for i in sorted(argument_indices)) or 'void'
+    return_type = 'uint'+str(lifter.bits)+'_t'
+    if hasattr(lifter, 'signature'):
+        return_type, arguments = lifter.signature(return_type, arguments)
     lines = ['/* 메모리 명령어로부터 만든 의사코드 · 원본 C/타입/ABI 복원 보장 없음 */',
              '/* flags/load/store/call/unknown_*는 동작을 표시하는 의사 연산입니다. */',
-             'uint'+str(lifter.bits)+'_t '+safe_name(name)+'('+arguments+')','{']
+             return_type+' '+safe_name(name)+'('+arguments+')','{']
     for variable in variables:
         declaration = '    '+variable['type']+' '+variable['name']
         if variable['initial'] is not None: declaration += ' = '+variable['initial']
         lines.append(declaration+';')
     lines += [''] + ['    '+line for line in body] + ['}']
     return {'code': '\n'.join(lines), 'style': style, 'variables': variables,
+            'semantic': getattr(lifter, 'summary', {}),
             'unsupported': lifter.unsupported, 'translated_count': sum(len(b['instructions']) for b in lifter.blocks)-len(lifter.unsupported),
             'note': '정수 연산과 분기를 C 형태로 표현한 정적 의사코드입니다. 원본 변수명·타입·호출 규약을 확정하지 않습니다. '
                     '미변환 명령과 미해결 제어 이전은 숨기지 않습니다.'}
 
 
-def analyze(raw, start, bits, name='', names=None):
+def analyze(raw, start, bits, name='', names=None, metadata=None, conservative=False):
     if bits not in (32,64): raise ValueError('지원하지 않는 코드 아키텍처')
     blocks, graph, dominators = decode(raw,start,bits)
-    lifter = Lifter(blocks,graph,bits,names or {})
+    if bits == 64 and not conservative:
+        from function_semantics import SemanticLifter
+        lifter = SemanticLifter(blocks,graph,bits,names or {},metadata or {},raw,start)
+    else:
+        lifter = Lifter(blocks,graph,bits,names or {})
     pseudo = pseudocode(lifter,name or 'sub_'+f'{start:X}',graph,dominators)
+    if hasattr(lifter,'candidate'):pseudo['inference']=lifter.candidate
+    if bits == 64 and not conservative:
+        pseudo['note'] = ('명령어 기반 추론과 확인된 함수 원형을 Windows x64 호출 규약에 연결한 의사코드입니다. '
+                          '문자열·스택 주소·스칼라 실수와 확인된 호출을 표시하며, 미확인 호출과 미변환 명령은 보존합니다. '
+                          '원본 변수명·복잡한 타입·벡터 레지스터 간 별칭을 완전히 복원하지 않습니다.')
     return {'results': [instruction(i) for b in blocks for i in b['instructions']],
             'graph': graph, 'pseudocode': pseudo, 'bits': bits,
             'argument_registers': [key.upper() for key in ('rcx','rdx','r8','r9') if key in lifter.input_args],

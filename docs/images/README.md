@@ -1,5 +1,10 @@
 # 화면 캡처 / Screenshots / 截图 / Capturas
 
+> [!NOTE]
+> JPG 파일은 기존 버전의 참고 화면입니다. 현재 버전의 UI나 실행 검증 결과를 나타내지 않습니다. `project-overview.svg`는 최신 구조를 설명하는 벡터 일러스트이며 화면 캡처가 아닙니다.
+
+`project-overview.svg`: repository-created architecture artwork · Driver 2.6.0.1 / Panel 3.2.2 / Manual ABI v3.
+
 2026-10-05–06 · `http://127.0.0.1:8005/` · loaded driver v2.2
 
 | 파일 / File / 文件 / Archivo | 화면 / View / 界面 / Vista |

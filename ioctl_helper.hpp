@@ -2,6 +2,11 @@
 
 #include "helper.hpp"
 #include "remote_call.hpp"
+#include "driver_version.h"
+#include "MANUAL_KERNEL.hpp"
+#include "ob_callbacks.hpp"
+#include "helper/process_object_layouts.h"
+#include <stddef.h>
 
 
 namespace helper
@@ -158,6 +163,15 @@ namespace helper
 
 #define IOCTL_HELPER_SET_THREAD_HIDE_FROM_DEBUGGER \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x821, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_HELPER_QUERY_PROCESS_OBJECT \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x825, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_HELPER_READ_PROCESS_OBJECT \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x826, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define PROCESS_OBJECT_SNAPSHOT_VERSION 1UL
+#define PROCESS_OBJECT_SNAPSHOT_MAX_SIZE 4096UL
 
 
         //
@@ -906,6 +920,118 @@ namespace helper
             NTSTATUS ResultStatus;
         } THREAD_HIDE_REQUEST, *PTHREAD_HIDE_REQUEST;
 
+#pragma pack(push, 8)
+        typedef struct _QUERY_PROCESS_OBJECT_REQUEST
+        {
+            ULONG ProcessId;
+            NTSTATUS ResultStatus;
+            // Snapshot only: the returned address does not pin the object.
+            ULONGLONG EprocessAddress;
+            ULONGLONG ProcessStartKey;
+        } QUERY_PROCESS_OBJECT_REQUEST, *PQUERY_PROCESS_OBJECT_REQUEST;
+
+        typedef struct _READ_PROCESS_OBJECT_REQUEST
+        {
+            ULONG StructSize;
+            ULONG Version;
+            ULONG ProcessId;
+            ULONG Size;
+            ULONGLONG ExpectedEprocessAddress;
+            ULONGLONG ExpectedProcessStartKey;
+            NTSTATUS ResultStatus;
+            ULONG BytesRead;
+            ULONGLONG EprocessAddress;
+            ULONGLONG ProcessStartKey;
+            UCHAR Data[PROCESS_OBJECT_SNAPSHOT_MAX_SIZE];
+        } READ_PROCESS_OBJECT_REQUEST, *PREAD_PROCESS_OBJECT_REQUEST;
+#pragma pack(pop)
+
+        static_assert(sizeof(QUERY_PROCESS_OBJECT_REQUEST) == 24, "process-object query ABI");
+        static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ProcessId) == 0, "process-object PID offset");
+        static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ResultStatus) == 4, "process-object status offset");
+        static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, EprocessAddress) == 8, "process-object address offset");
+        static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ProcessStartKey) == 16, "process-object start-key offset");
+
+        static_assert(sizeof(READ_PROCESS_OBJECT_REQUEST) == 4152, "process-object snapshot ABI");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, StructSize) == 0, "snapshot struct-size offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Version) == 4, "snapshot version offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ProcessId) == 8, "snapshot PID offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Size) == 12, "snapshot size offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ExpectedEprocessAddress) == 16, "snapshot expected-address offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ExpectedProcessStartKey) == 24, "snapshot expected-key offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ResultStatus) == 32, "snapshot status offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, BytesRead) == 36, "snapshot bytes-read offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, EprocessAddress) == 40, "snapshot address offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ProcessStartKey) == 48, "snapshot start-key offset");
+        static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Data) == 56, "snapshot data offset");
+
+        // The PID lookup pins this allocation only for the copy. Fields may
+        // still change during a snapshot; no EPROCESS-internal lock is held.
+        inline NTSTATUS ReadProcessObjectSnapshot(READ_PROCESS_OBJECT_REQUEST* request)
+        {
+            if (!request) return STATUS_INVALID_PARAMETER;
+            request->ResultStatus = STATUS_UNSUCCESSFUL;
+            request->BytesRead = 0;
+            request->EprocessAddress = 0;
+            request->ProcessStartKey = 0;
+            RtlZeroMemory(request->Data, sizeof(request->Data));
+
+            if (KeGetCurrentIrql() != PASSIVE_LEVEL) return STATUS_INVALID_DEVICE_STATE;
+            if (request->StructSize != sizeof(*request) || request->Version != PROCESS_OBJECT_SNAPSHOT_VERSION ||
+                !request->ProcessId || !request->ExpectedEprocessAddress || !request->Size)
+                return STATUS_INVALID_PARAMETER;
+            if (request->Size > sizeof(request->Data)) return STATUS_INVALID_BUFFER_SIZE;
+#if !defined(_AMD64_) && !defined(_M_X64)
+            return STATUS_NOT_SUPPORTED;
+#else
+            RTL_OSVERSIONINFOW version = {};
+            version.dwOSVersionInfoSize = sizeof(version);
+            NTSTATUS status = RtlGetVersion(&version);
+            if (!NT_SUCCESS(status)) return status;
+            const ULONG object_size = helper::process_object::KnownProcessObjectSize(version.dwBuildNumber);
+            if (!object_size) return STATUS_NOT_SUPPORTED;
+            if (request->Size > object_size) return STATUS_INVALID_BUFFER_SIZE;
+
+            PEPROCESS process = nullptr;
+            status = PsLookupProcessByProcessId(
+                reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(request->ProcessId)), &process);
+            if (!NT_SUCCESS(status)) return status;
+            __try
+            {
+                const ULONGLONG address = reinterpret_cast<ULONGLONG>(process);
+                const ULONGLONG start_key = PsGetProcessStartKey(process);
+                if (address != request->ExpectedEprocessAddress || start_key != request->ExpectedProcessStartKey)
+                    status = STATUS_INVALID_CID;
+                else
+                {
+                    MM_COPY_ADDRESS source = {};
+                    // Never use ExpectedEprocessAddress as a source pointer.
+                    source.VirtualAddress = process;
+                    SIZE_T copied = 0;
+                    status = MmCopyMemory(request->Data, source, request->Size, MM_COPY_MEMORY_VIRTUAL, &copied);
+                    request->BytesRead = static_cast<ULONG>(copied);
+                    if (status != STATUS_SUCCESS || copied != request->Size)
+                    {
+                        // A partial snapshot is unusable; expose its byte count
+                        // as metadata, while withholding every payload byte.
+                        RtlZeroMemory(request->Data, sizeof(request->Data));
+                        if (status == STATUS_SUCCESS) status = STATUS_PARTIAL_COPY;
+                    }
+                    else
+                    {
+                        request->EprocessAddress = address;
+                        request->ProcessStartKey = start_key;
+                    }
+                }
+            }
+            __finally
+            {
+                ObDereferenceObject(process);
+            }
+            return status;
+#endif
+        }
+
 
         //
         // ============================================================
@@ -1219,6 +1345,14 @@ namespace helper
                 0;
 
             helper::diagnostics::IncrementIoctlCount();
+            if (ioctl_code == IOCTL_MANUAL_MAP) {
+                status = helper::manual_map::Request(irp, &information);
+                irp->IoStatus.Status = status;
+                irp->IoStatus.Information = information;
+                IoCompleteRequest(irp, IO_NO_INCREMENT);
+                return status;
+            }
+
 
 
 
@@ -3492,15 +3626,41 @@ namespace helper
                 else
                 {
                     request->ResultStatus = STATUS_SUCCESS;
-                    request->MajorVersion = 2;
-                    request->MinorVersion = 3;
-                    request->BuildNumber = 20261004;
+                    request->MajorVersion = SAMPLEKERNEL_VERSION_MAJOR;
+                    request->MinorVersion = SAMPLEKERNEL_VERSION_MINOR;
+                    request->BuildNumber = SAMPLEKERNEL_VERSION_BUILD;
                     request->DriverStartTime = helper::diagnostics::DriverStartTime();
                     request->TotalIoctlRequests = static_cast<ULONGLONG>(InterlockedCompareExchange64(helper::diagnostics::TotalIoctlCount(), 0, 0));
 
                     request->EventMonitorActive = FALSE;
                     request->QueuedEventCount = 0;
 
+                    information = sizeof(*request);
+                    status = STATUS_SUCCESS;
+                }
+            }
+
+            else if (ioctl_code == IOCTL_HELPER_QUERY_OB_CALLBACKS)
+            {
+                auto request = GetPacket<OB_CALLBACK_STATUS_REQUEST>(irp, stack);
+                if (!request) {
+                    status = STATUS_BUFFER_TOO_SMALL;
+                } else {
+                    status = helper::ob_callbacks::QueryDiagnostics(request);
+                    if (NT_SUCCESS(status)) information = sizeof(*request);
+                }
+            }
+
+            else if (ioctl_code == IOCTL_HELPER_REGISTER_OB_CALLBACKS ||
+                ioctl_code == IOCTL_HELPER_UNREGISTER_OB_CALLBACKS)
+            {
+                auto request = GetPacket<OB_CALLBACK_CONTROL_REQUEST>(irp, stack);
+                if (!request) {
+                    status = STATUS_BUFFER_TOO_SMALL;
+                } else {
+                    request->ResultStatus = ioctl_code == IOCTL_HELPER_REGISTER_OB_CALLBACKS ?
+                        helper::ob_callbacks::RequestRegistration(request) :
+                        helper::ob_callbacks::RequestUnregistration(request);
                     information = sizeof(*request);
                     status = STATUS_SUCCESS;
                 }
@@ -3738,6 +3898,50 @@ namespace helper
                 else
                 {
                     request->ResultStatus = helper::remote_call::Release(stack->FileObject, request);
+                    information = sizeof(*request);
+                    status = STATUS_SUCCESS;
+                }
+            }
+
+            else if (ioctl_code == IOCTL_HELPER_QUERY_PROCESS_OBJECT)
+            {
+                auto request = GetPacket<QUERY_PROCESS_OBJECT_REQUEST>(irp, stack);
+                if (!request) status = STATUS_BUFFER_TOO_SMALL;
+                else
+                {
+                    request->EprocessAddress = 0;
+                    request->ProcessStartKey = 0;
+                    request->ResultStatus = STATUS_INVALID_PARAMETER;
+                    if (request->ProcessId != 0)
+                    {
+                        PEPROCESS process = nullptr;
+                        request->ResultStatus = PsLookupProcessByProcessId(
+                            reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(request->ProcessId)), &process);
+                        if (NT_SUCCESS(request->ResultStatus))
+                        {
+                            __try
+                            {
+                                request->EprocessAddress = reinterpret_cast<ULONGLONG>(process);
+                                request->ProcessStartKey = PsGetProcessStartKey(process);
+                            }
+                            __finally
+                            {
+                                ObDereferenceObject(process);
+                            }
+                        }
+                    }
+                    information = sizeof(*request);
+                    status = STATUS_SUCCESS;
+                }
+            }
+
+            else if (ioctl_code == IOCTL_HELPER_READ_PROCESS_OBJECT)
+            {
+                auto request = GetPacket<READ_PROCESS_OBJECT_REQUEST>(irp, stack);
+                if (!request) status = STATUS_BUFFER_TOO_SMALL;
+                else
+                {
+                    request->ResultStatus = ReadProcessObjectSnapshot(request);
                     information = sizeof(*request);
                     status = STATUS_SUCCESS;
                 }

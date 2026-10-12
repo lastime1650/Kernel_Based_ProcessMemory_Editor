@@ -1,7 +1,7 @@
 """
 SampleKernel1 Windows Kernel Driver Communication Bridge (Python3)
 Connects to \\\\.\\MyDriver via Windows DeviceIoControl and provides complete coverage
-for all 37 IOCTLs (0x800 to 0x824).
+for IOCTLs 0x800 to 0x829 and kernel manual mapping at function 0x878.
 """
 
 import ctypes
@@ -10,6 +10,11 @@ import struct
 import datetime
 import threading
 from typing import Optional, Dict, Any, List, Tuple
+from manual_map_protocol import (FUNCTION as MANUAL_MAP_FUNCTION, MANUAL_MAP_REQUEST,
+                                 VERSION as MANUAL_MAP_VERSION, request as manual_map_request,
+                                 decode_failmessage, valid_result_diagnostic,
+                                 valid_result_addresses)
+import ob_callbacks_protocol as OB
 
 # Windows API Constants & Types
 GENERIC_READ = 0x80000000
@@ -42,7 +47,7 @@ FILE_WRITE_ACCESS = 2
 FILE_ANY_ACCESS = 0
 RW_ACCESS = FILE_READ_ACCESS | FILE_WRITE_ACCESS
 
-# All 37 IOCTL Codes
+# Existing IOCTL codes and the kernel manual-map request.
 IOCTL_HELPER_PROCESS_INFORMATION         = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_ALLOC_VIRTUAL_MEMORY        = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_FREE_VIRTUAL_MEMORY         = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, RW_ACCESS)
@@ -80,6 +85,37 @@ IOCTL_HELPER_SET_THREAD_HIDE_FROM_DEBUGGER = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x821
 IOCTL_HELPER_CREATE_FUNCTION_CALL = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x822, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_QUERY_FUNCTION_CALL = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x823, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_RELEASE_FUNCTION_CALL = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x824, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_QUERY_PROCESS_OBJECT = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x825, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_READ_PROCESS_OBJECT = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x826, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_QUERY_OB_CALLBACKS_STATUS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.FUNCTION, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_REGISTER_OB_CALLBACKS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.REGISTER_FUNCTION, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_UNREGISTER_OB_CALLBACKS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.UNREGISTER_FUNCTION, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_MANUAL_MAP = CTL_CODE(FILE_DEVICE_UNKNOWN, MANUAL_MAP_FUNCTION, METHOD_BUFFERED, RW_ACCESS)
+
+
+class QUERY_PROCESS_OBJECT_REQUEST(ctypes.Structure):
+    _pack_ = 8
+    _fields_ = [('ProcessId', ctypes.c_uint32), ('ResultStatus', ctypes.c_int32),
+                ('EprocessAddress', ctypes.c_uint64), ('ProcessStartKey', ctypes.c_uint64)]
+
+
+assert ctypes.sizeof(QUERY_PROCESS_OBJECT_REQUEST) == 24
+assert QUERY_PROCESS_OBJECT_REQUEST.EprocessAddress.offset == 8
+assert QUERY_PROCESS_OBJECT_REQUEST.ProcessStartKey.offset == 16
+
+
+class READ_PROCESS_OBJECT_REQUEST(ctypes.Structure):
+    _pack_ = 8
+    _fields_ = [('StructSize', ctypes.c_uint32), ('Version', ctypes.c_uint32),
+                ('ProcessId', ctypes.c_uint32), ('Size', ctypes.c_uint32),
+                ('ExpectedEprocessAddress', ctypes.c_uint64), ('ExpectedProcessStartKey', ctypes.c_uint64),
+                ('ResultStatus', ctypes.c_int32), ('BytesRead', ctypes.c_uint32),
+                ('EprocessAddress', ctypes.c_uint64), ('ProcessStartKey', ctypes.c_uint64),
+                ('Data', ctypes.c_ubyte * 4096)]
+
+
+assert ctypes.sizeof(READ_PROCESS_OBJECT_REQUEST) == 4152
+assert READ_PROCESS_OBJECT_REQUEST.Data.offset == 56
 
 class CREATE_FUNCTION_CALL_REQUEST(ctypes.Structure):
     _pack_ = 8
@@ -591,7 +627,7 @@ class KernelDriverBridge:
             self.handle = self._kernel32.CreateFileW(
                 self.device_path,
                 GENERIC_READ | GENERIC_WRITE,
-                0,
+                3,  # FILE_SHARE_READ | FILE_SHARE_WRITE for the shared device.
                 None,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
@@ -644,6 +680,100 @@ class KernelDriverBridge:
             return bool(ok), last_error, bytes_returned.value
 
     # High-level IOCTL wrappers (packet layouts and result fields unchanged).
+
+    def read_process_object(self, pid: int, expected_address: int, expected_start_key: int, size: int) -> Dict[str, Any]:
+        """Copy a bounded EPROCESS snapshot only for the confirmed process identity."""
+        values = (pid, expected_address, expected_start_key, size)
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in values):
+            raise ValueError('PID, EPROCESS 주소, 시작 키와 크기는 정수여야 합니다')
+        if not 0 < pid <= 0xffffffff or not 0 < expected_address <= 0xffffffffffffffff:
+            raise ValueError('PID 또는 EPROCESS 주소 범위를 확인하세요')
+        if not 0 <= expected_start_key <= 0xffffffffffffffff or not 1 <= size <= 4096:
+            raise ValueError('시작 키 또는 EPROCESS 읽기 크기를 확인하세요 (최대 4096바이트)')
+        req = READ_PROCESS_OBJECT_REQUEST()
+        req.StructSize = ctypes.sizeof(req)
+        req.Version = 1
+        req.ProcessId = pid
+        req.Size = size
+        req.ExpectedEprocessAddress = expected_address
+        req.ExpectedProcessStartKey = expected_start_key
+        req.ResultStatus = -1073741823
+        ok, error, returned = self.send_ioctl(IOCTL_HELPER_READ_PROCESS_OBJECT, req)
+        packet_valid = (ok and returned == ctypes.sizeof(req) and req.StructSize == ctypes.sizeof(req)
+                        and req.Version == 1 and req.ProcessId == pid and req.Size == size)
+        owner_matches = req.EprocessAddress == expected_address and req.ProcessStartKey == expected_start_key
+        success = packet_valid and req.ResultStatus >= 0 and req.BytesRead == size and owner_matches
+        result = {'success': success, 'transport_ok': bool(ok), 'packet_valid': packet_valid,
+                  'error_code': error, 'bytes_returned': returned, 'process_id': pid, 'size': size,
+                  'bytes_read': int(req.BytesRead) if packet_valid else 0,
+                  'result_status': f'0x{req.ResultStatus & 0xffffffff:08X}',
+                  'eprocess_address': f'0x{req.EprocessAddress:016X}' if success else None,
+                  'process_start_key': str(req.ProcessStartKey) if success else None,
+                  'data_hex': bytes(req.Data[:size]).hex() if success else '', 'readonly': True}
+        if not success:
+            unsupported = error in (1, 50) or req.ResultStatus & 0xffffffff in (0xC0000010, 0xC00000BB)
+            result['unsupported'] = unsupported
+            result['identity_mismatch'] = packet_valid and not owner_matches
+            result['error'] = ('EPROCESS 구조체 읽기는 드라이버 2.4 / 빌드 20261010 이상이 필요합니다.' if unsupported
+                               else 'EPROCESS 구조체 읽기에 실패했습니다. 대상 신원과 전체 응답을 다시 확인하세요.')
+        return result
+
+    def query_process_object(self, pid: int) -> Dict[str, Any]:
+        """Read the selected process object's address; never dereference it here."""
+        if isinstance(pid, bool) or not isinstance(pid, int) or not 0 < pid <= 0xffffffff:
+            raise ValueError('PID 범위를 확인하세요')
+        req = QUERY_PROCESS_OBJECT_REQUEST()
+        req.ProcessId = pid
+        req.ResultStatus = -1073741823  # STATUS_UNSUCCESSFUL until a full reply arrives.
+        ok, error, returned = self.send_ioctl(IOCTL_HELPER_QUERY_PROCESS_OBJECT, req)
+        packet_valid = ok and returned == ctypes.sizeof(req) and req.ProcessId == pid
+        success = packet_valid and req.ResultStatus >= 0 and bool(req.EprocessAddress)
+        result = {'success': success, 'transport_ok': bool(ok), 'packet_valid': packet_valid,
+                  'error_code': error, 'bytes_returned': returned, 'process_id': pid,
+                  'result_status': f'0x{req.ResultStatus & 0xffffffff:08X}',
+                  'eprocess_address': f'0x{req.EprocessAddress:016X}' if success else None,
+                  'process_start_key': str(req.ProcessStartKey) if success else None,
+                  'readonly': True}
+        if not success:
+            unsupported = error in (1, 50) or req.ResultStatus & 0xffffffff in (0xC0000010, 0xC00000BB)
+            result['unsupported'] = unsupported
+            result['error'] = ('EPROCESS 조회는 드라이버 2.4 / 빌드 20261010 이상이 필요합니다. 현재 로드된 드라이버는 이 요청을 지원하지 않습니다.'
+                               if unsupported else 'EPROCESS 조회에 실패했습니다. 드라이버 연결, PID와 응답 상태를 확인하세요.')
+        return result
+
+    def get_ob_callbacks_status(self) -> Dict[str, Any]:
+        """Query live observer diagnostics without opening a disconnected device."""
+        with self._lock:
+            if not self.is_connected():
+                return OB.failure('disconnected', '드라이버가 연결되어 있지 않습니다.')
+            packet = OB.request()
+            try:
+                ok, error, returned = self.send_ioctl(IOCTL_HELPER_QUERY_OB_CALLBACKS_STATUS, packet)
+            except (OSError, RuntimeError) as exc:
+                return OB.failure('read_failed', 'Ob 콜백 상태 조회에 실패했습니다: ' + str(exc),
+                                  connected=True, error_code=getattr(exc, 'winerror', 0) or 0)
+            return OB.response(packet, ok, error, returned)
+
+    def _control_ob_callbacks(self, action, packet):
+        expected = (packet.MinimumAltitude, packet.MaximumAltitude, packet.MaximumFraction)
+        code = IOCTL_HELPER_REGISTER_OB_CALLBACKS if action == 'register' else IOCTL_HELPER_UNREGISTER_OB_CALLBACKS
+        with self._lock:
+            if not self.is_connected():
+                return OB.control_failure(action, 'disconnected', '드라이버가 연결되어 있지 않습니다.')
+            try:
+                ok, error, returned = self.send_ioctl(code, packet)
+            except (OSError, RuntimeError) as exc:
+                return OB.control_failure(action, 'control_failed', 'Ob 콜백 제어에 실패했습니다: ' + str(exc),
+                                          connected=True, error_code=getattr(exc, 'winerror', 0) or 0)
+            return OB.control_response(action, packet, expected, ok, error, returned)
+
+    def register_ob_callbacks(self, minimum_altitude: int, maximum_altitude: int,
+                              maximum_fraction: int = 1000) -> Dict[str, Any]:
+        minimum, maximum, fraction = OB.configuration(minimum_altitude, maximum_altitude, maximum_fraction)
+        return self._control_ob_callbacks('register', OB.control_request('register', minimum, maximum, fraction))
+
+    def unregister_ob_callbacks(self) -> Dict[str, Any]:
+        return self._control_ob_callbacks('unregister', OB.control_request('unregister'))
 
     def get_driver_status(self) -> Dict[str, Any]:
         req = DRIVER_STATUS_REQUEST()
@@ -1203,6 +1333,29 @@ class KernelDriverBridge:
             "error_code": err,
             "result_status": f"0x{req.ResultStatus & 0xFFFFFFFF:08X}"
         }
+
+    def manual_map_dll(self, pid: int, path: str) -> Dict[str, Any]:
+        req, nt_path = manual_map_request(pid, path)
+        expected_path = bytes(req.ImagePath)
+        ok, error, returned = self.send_ioctl(IOCTL_MANUAL_MAP, req)
+        valid = (ok and returned == ctypes.sizeof(req) and req.Version == MANUAL_MAP_VERSION
+                 and req.Reserved == 0 and req.ProcessId == pid and bytes(req.ImagePath) == expected_path)
+        base, entry = int(req.MappedBase), int(req.EntryPoint)
+        message = decode_failmessage(req) if valid else None
+        addresses_valid = valid_result_addresses(base, entry)
+        valid = (valid and addresses_valid and (req.ResultStatus != 0 or base != 0)
+                 and valid_result_diagnostic(req.ResultStatus, int(req.failcode), message))
+        return {'success': bool(valid and req.ResultStatus == 0), 'transport_ok': bool(ok),
+                'packet_valid': bool(valid), 'error_code': error, 'bytes_returned': returned,
+                'result_status': f'0x{req.ResultStatus & 0xffffffff:08X}',
+                'failcode': int(req.failcode) if valid else None,
+                'failmessage': message if valid else None,
+                'mapped_base': f'0x{base:X}' if valid else '0x0',
+                'entry_point': f'0x{entry:X}' if valid else '0x0', 'nt_path': nt_path,
+                # Failed/short transport may have reached the kernel. A retained
+                # base on operation failure may still have running target code.
+                'execution_unknown': bool(not valid or (req.ResultStatus != 0 and base != 0) or
+                                          (req.ResultStatus & 0xffffffff) in (0x102, 0x103, 0xc00000b5))}
 
     def _function_call_response(self, code, req):
         ok, error, returned = self.send_ioctl(code, req)

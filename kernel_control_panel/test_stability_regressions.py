@@ -293,17 +293,12 @@ class StabilityTests(unittest.TestCase):
 
 
 class NativeMemoryTests(unittest.TestCase):
-    def test_scanner_reads_local_memory_without_pointer_truncation(self):
-        values = (ctypes.c_int32 * 4)(7, 8, 7, 9)
-        regions = [{'keep_for_scan': True, 'base_address_int': ctypes.addressof(values), 'region_size': ctypes.sizeof(values)}]
+    def test_legacy_native_scanner_is_disabled_without_opening_target(self):
         session = scanner.MemoryScannerSession(None)
-        with patch.object(scanner, 'get_memory_regions', return_value=regions):
-            result = session.first_scan(os.getpid(), 'int32', 'exact', '7')
-        self.assertEqual(result['count'], 2)
-        values[0] = 10
-        result = session.next_scan('increased')
-        self.assertEqual(result['count'], 1)
-        self.assertEqual(session.get_results()['results'][0]['address_int'], ctypes.addressof(values))
+        with patch.object(ctypes, 'WinDLL', side_effect=AssertionError('native target API forbidden')) as loader:
+            with self.assertRaisesRegex(RuntimeError, '커널 IOCTL'):
+                session.first_scan(os.getpid(), 'int32', 'exact', '7')
+        loader.assert_not_called()
 
 
 if __name__ == '__main__':

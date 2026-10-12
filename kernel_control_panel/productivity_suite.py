@@ -13,13 +13,15 @@ from contextlib import closing
 from memory_editor import FORMATS, encode, location, number
 from change_journal import Journal
 from request_scheduler import scope
+from runtime_paths import data_path
+from atomic_metadata import write_json
 
 TYPES=list(FORMATS)+['pointer','utf8','utf16','bytes','struct']
 NAME=re.compile(r'^[A-Za-z_][A-Za-z0-9_:$<> ]{0,119}$')
 KEY=re.compile(r'^[a-f0-9]{32}$')
 
 def atomic(path,data):
-    temp=path.with_suffix('.tmp');temp.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8');temp.replace(path)
+    write_json(path,data)
 
 def definitions(value,bits=64):
     if not isinstance(value,list) or not 1<=len(value)<=64: raise ValueError('구조체 정의는 1~64개입니다')
@@ -84,7 +86,7 @@ def decoded(kind,raw,bits):
 
 class Suite:
     def __init__(self,studio,root=None):
-        self.studio=studio;self.root=Path(root or Path(__file__).parent/'workspaces')
+        self.studio=studio;self.root=Path(root or data_path('workspaces'))
         self.root.mkdir(parents=True,exist_ok=True);self.lock=threading.RLock()
         self.previews={};self.timelines={};self.timeline_locks={};self.views={};self.limit=64
         self.journal=Journal(studio,self.root/'journal')

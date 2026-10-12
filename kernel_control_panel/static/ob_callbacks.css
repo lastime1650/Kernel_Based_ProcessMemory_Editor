@@ -1,0 +1,22 @@
+.oc-panel .oc-status{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--line);border-radius:8px;background:#0c1521;color:var(--text)}
+.oc-panel .oc-status strong{font-size:17px;color:inherit}
+.oc-panel .oc-status p{margin:5px 0 0;color:inherit;font-size:13px}
+.oc-panel .oc-status-icon{font-size:24px;line-height:1.2;flex:none}
+.oc-panel .oc-status--registered{border-color:#46736e;background:#173334;color:var(--accent)}
+.oc-panel .oc-status--failed,.oc-panel .oc-status--query-error{border-color:#9b515d;background:#412632;color:var(--bad)}
+.oc-panel .oc-status--pending{border-color:#526b88;background:#172638;color:var(--blue)}
+.oc-panel .oc-status--idle{color:var(--muted)}
+.oc-panel .oc-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:0}
+.oc-panel .oc-setting{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,1.4fr);gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.oc-panel .oc-setting dt{color:var(--muted);font-size:12px}
+.oc-panel .oc-setting dd{margin:0;color:var(--text);overflow-wrap:anywhere;font-size:13px}
+.oc-panel .oc-history-caption{text-align:left;padding:10px;color:var(--muted);font-size:11px}
+.oc-panel #oc-queried{margin:12px 0 0}
+.oc-panel .oc-range-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+.oc-panel .oc-range-fields input{width:100%;font-family:Consolas,monospace}
+.oc-panel .oc-command-result{margin:12px 0 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.oc-panel .oc-command-result--error{color:var(--bad)}
+.oc-panel .oc-history-settings-heading{margin-top:22px}
+.oc-panel .table-wrap td{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:1150px){.oc-panel .oc-settings{grid-template-columns:1fr}}
+@media(max-width:600px){.oc-panel .oc-setting{grid-template-columns:1fr;gap:4px}.oc-panel .oc-status{padding:12px}.oc-panel .actions button{width:100%}.oc-panel .oc-range-fields{grid-template-columns:1fr}}

@@ -11,10 +11,14 @@
 /ARM64/
 /Debug/
 /Release/
+/releases/
 *.obj
 *.pdb
 *.ilk
 *.tlog
+*.lib
+*.exp
+*.res
 *.sys
 *.cat
 *.exe
@@ -30,6 +34,10 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
+/kernel_control_panel/build/
+/kernel_control_panel/dist/
+**/native-test-results.json
+.venv-*/
 # Runtime data / 실행 기록 / 运行数据 / Datos de ejecución
 /kernel_control_panel/assets/
 /kernel_control_panel/symbols/
@@ -38,6 +46,10 @@ htmlcov/
 /kernel_control_panel/static/reports/
 *.sqlite
 *.sqlite-*
+*.db
+*.db-*
+*.dmp
+*.memory.bin
 *.part
 # Local secrets / 로컬 비밀정보 / 本地机密 / Secretos locales
 .env

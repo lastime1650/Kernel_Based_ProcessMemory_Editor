@@ -1,4 +1,4 @@
-"""Browser tools built on the existing driver ABI. No new kernel operations."""
+"""Browser tools and identity-bound kernel object inspection."""
 import base64
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -10,12 +10,16 @@ import struct
 import threading
 import time
 import uuid
+from manual_map_protocol import (IDENTITY_NOTE as MANUAL_MAP_IDENTITY_NOTE,
+                                 VERSION as MANUAL_MAP_VERSION, REQUEST_BYTES as MANUAL_MAP_BYTES,
+                                 FAILMESSAGE_BYTES as MANUAL_MAP_FAILMESSAGE_BYTES)
 import asyncio
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from memory_dump import DumpManager, MAX_DUMP_BYTES, MAX_CHUNK_BYTES
 import driver_bridge as D
+import ob_callbacks_protocol as OB
 import studio_extensions as E
 import image_workbench as W
 import disassembly_workspace as A
@@ -23,10 +27,14 @@ import scan_workspace as S
 import memory_editor as M
 import memory_wide_view as MV
 import memory_allocation as MA
+import hwbp_capture as HC
+import eprocess_workbench as EW
 import productivity_suite as P
 import sqlite3
 from request_scheduler import scope
 from pathlib import Path
+from runtime_paths import data_path
+from build_info import release_info
 from memory_scanner import FORMATS
 
 MAX_BYTES = 1024 * 1024
@@ -127,7 +135,7 @@ class BreakpointInfo(C.Structure):
 
 
 OP_GROUPS = {
-    '프로세스': ['process', 'handles', 'token', 'threads', 'thread_info'],
+    '프로세스': ['process', 'process_object', 'handles', 'token', 'threads', 'thread_info'],
     '메모리': ['read', 'write', 'alloc', 'free', 'protect', 'copy', 'fill', 'dump'],
     '검색': ['kernel_value', 'strings', 'pattern', 'pattern_regions', 'pointer_search'],
     '모듈': ['regions', 'modules', 'pe'],
@@ -150,6 +158,12 @@ IOCTL_UI = {
     0x819:'status', 0x81A:'process', 0x81B:'handles', 0x81C:'token', 0x81D:'thread_info',
     0x81E:'priority', 0x81F:'affinity', 0x821:'hide',
     0x822:'function_call',0x823:'function_call_query',0x824:'function_call_release',
+    0x825:'process_object',
+    0x826:'eprocess_snapshot',
+    0x827:'ObRegisterCallback 상태 조회',
+    0x828:'ObRegisterCallback 등록 요청',
+    0x829:'ObRegisterCallback 해제 요청',
+    0x878:'ManualV4 커널 DLL 매핑',
 }
 
 
@@ -189,6 +203,7 @@ class Studio:
         driver.send_ioctl = traced
         self.workbench=W.Workbench(self)
         self.disassembly=A.Workspace(self)
+        self.hwbp_capture=HC.Capture(self)
 
     def prepare(self):
         if self.closing:
@@ -352,7 +367,14 @@ class Studio:
         tid = lambda: bounded(args.get('tid', 0), 0xffffffff)
         if operation == 'status':
             response = d.get_driver_status()
-            return dict(response, connected=d.is_connected())
+            return dict(response, connected=d.is_connected(), **release_info())
+        if operation == 'process_object':
+            response = d.query_process_object(pid)
+            if response.get('success'):
+                return dict(response, results=[{key: response[key] for key in
+                            ('process_id', 'eprocess_address', 'process_start_key')}],
+                            note='선택한 PID의 커널 프로세스 객체 주소입니다. 대상이 종료되면 주소는 유효하지 않습니다.')
+            return response
         if operation == 'process':
             return {'success': True, 'basic': require(d.query_process_info(pid)),
                     'extended': require(d.query_process_extended(pid)), 'token': require(d.query_process_token(pid))}
@@ -600,7 +622,14 @@ class Studio:
                 kind=bounded(args.get('type',0),3,0)
                 length=bounded(args.get('length',1),8)
                 if kind not in (0,1,3) or length not in (1,2,4,8): raise ValueError("중단점 유형/길이를 확인하세요")
+                capture=self.hwbp_capture.arm(pid,start(),kind,length)
                 response=d.set_hardware_breakpoint(pid,start(),kind,{1:0,2:1,4:3,8:2}[length])
+                if not response.get('success'):
+                    capture['unknown_arm']=True
+                    capture['last_error']='중단점 설정 실패: 일부 스레드 복원 여부가 불확실하여 VEH를 유지합니다'
+                response=dict(response,capture_ready=True,capture_state=capture['state'],
+                              recovery_unknown=not response.get('success',False),
+                              note='VEH 준비 후 설정했습니다. 이후 생성된 스레드는 자동 적용되지 않습니다.')
                 key=uuid.uuid4().hex
                 if response['first_result_node_int']:
                     self.breakpoints[key]={'id':key,'pid':pid,'identity':identity,'address':f'0x{start():X}',
@@ -680,6 +709,8 @@ class Studio:
             return self.operate(operation,args,cancelled)
         except StudioError as exc:
             return {'success':False,'error':str(exc),'driver_response':exc.response}
+        except OSError as exc:
+            return {'success':False,'error':str(exc),**getattr(exc,'journal_state',{})}
         except (ValueError,KeyError,TypeError,struct.error,OverflowError) as exc:
             result = {'success':False,'error':str(exc)}
             if getattr(exc, 'target_invalid', False): result['target_invalid'] = True
@@ -716,6 +747,7 @@ class Studio:
         self.closing=True
         if hasattr(self, 'scans'):
             self.scans.shutdown()
+        self.hwbp_capture.shutdown()
         self.workbench.shutdown()
         if hasattr(self, 'dumps'):
             self.dumps.shutdown()
@@ -730,6 +762,55 @@ class Studio:
                     del self.breakpoints[key]
 
 
+def install_ob_callbacks_status(app, driver, closing=lambda: False):
+    """Global observer status and explicit controls, independent of a selected PID."""
+    @app.get('/api/ob-callbacks/status')
+    def ob_callbacks_status():
+        if closing():
+            return OB.failure('closing', '서버가 종료 중입니다.')
+        query = getattr(driver, 'get_ob_callbacks_status', None)
+        if not callable(query):
+            return OB.failure('unsupported', '이 패널 연결은 Ob 콜백 상태 조회를 지원하지 않습니다.')
+        try:
+            with scope(2, 'ob-callbacks-status'):
+                result = query()
+            if not isinstance(result, dict) or 'success' not in result:
+                return OB.failure('invalid_reply', 'Ob 콜백 상태 조회 결과 형식이 올바르지 않습니다.')
+            return result
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
+            return OB.failure('read_failed', 'Ob 콜백 상태 조회에 실패했습니다: ' + str(exc))
+
+    def control(action, args=()):
+        if closing():
+            return OB.control_failure(action, 'closing', '서버가 종료 중입니다.')
+        method = getattr(driver, 'register_ob_callbacks' if action == 'register' else 'unregister_ob_callbacks', None)
+        if not callable(method):
+            return OB.control_failure(action, 'unsupported', '이 패널 연결은 Ob 콜백 V2 제어를 지원하지 않습니다.')
+        try:
+            with scope(0, 'ob-callbacks-' + action):
+                result = method(*args)
+            if not isinstance(result, dict) or 'success' not in result:
+                return OB.control_failure(action, 'invalid_reply', 'Ob 콜백 제어 결과 형식이 올바르지 않습니다.')
+            return result
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
+            return OB.control_failure(action, 'control_failed', 'Ob 콜백 제어에 실패했습니다: ' + str(exc))
+
+    @app.post('/api/ob-callbacks/register')
+    def ob_callbacks_register(body: dict = Body(...)):
+        try:
+            if set(body) - {'minimum_altitude', 'maximum_altitude', 'maximum_fraction'}:
+                raise ValueError('등록 요청에는 altitude 범위와 최대 소수 카운터만 전달하세요.')
+            values = OB.configuration(body.get('minimum_altitude'), body.get('maximum_altitude'),
+                                      body.get('maximum_fraction', 1000))
+        except (ValueError, TypeError) as exc:
+            return OB.control_failure('register', 'invalid_input', str(exc))
+        return control('register', values)
+
+    @app.post('/api/ob-callbacks/unregister')
+    def ob_callbacks_unregister():
+        return control('unregister')
+
+
 def install(app,driver):
     studio=Studio(driver)
     studio.dumps=DumpManager(studio)
@@ -738,7 +819,36 @@ def install(app,driver):
     studio.wide_views=MV.Workspace(studio)
     studio.payload_allocations=MA.Workspace(studio)
     studio.suite=P.Suite(studio)
+    studio.eprocess=EW.Workbench(driver)
+    install_ob_callbacks_status(app, driver, lambda: studio.closing)
     router=APIRouter(prefix='/api/studio')
+
+    @router.get('/eprocess/presets')
+    def eprocess_presets():
+        return studio.eprocess.info()
+
+    @router.post('/eprocess/snapshot')
+    def eprocess_snapshot(body:dict=Body(...)):
+        if studio.closing:
+            return {'success':False,'error':'서버가 종료 중입니다','fields':[],'data_hex':''}
+        try:
+            with scope(2, 'eprocess-live'):
+                return studio.eprocess.snapshot(body)
+        except (ValueError,TypeError,KeyError,OSError,RuntimeError) as exc:
+            return {'success':False,'error':str(exc),'fields':[],'data_hex':''}
+
+    @router.get('/hwbp/capture')
+    def capture_view(pid:int,after:int=0,limit:int=200):
+        try: return json_safe(studio.hwbp_capture.view(pid,after,limit))
+        except (ValueError,TypeError) as exc: raise HTTPException(400,str(exc))
+
+    @router.post('/hwbp/capture/{action}')
+    def capture_action(action:str,body:dict=Body(...)):
+        try: return json_safe(studio.hwbp_capture.action(action,body))
+        except (ValueError,StudioError,OSError,KeyError,TypeError,RuntimeError) as exc:
+            result={'success':False,'error':str(exc)}
+            if isinstance(exc,StudioError): result['driver_response']=exc.response
+            return result
 
     @app.middleware('http')
     async def prioritize(request,call_next):
@@ -832,9 +942,15 @@ def install(app,driver):
 
     @router.get('/capabilities')
     def capabilities():
-        return {'success':True,'groups':OP_GROUPS,'ioctls':[{'ioctl':f'0x{key:03X}','tool':value} for key,value in IOCTL_UI.items()],
+        return {'success':True,'release':release_info(),'groups':OP_GROUPS,'ioctls':[{'ioctl':f'0x{key:03X}','tool':value} for key,value in IOCTL_UI.items()],
                 'excluded':['프로세스 생성/종료 이벤트','이미지 로드 이벤트','스레드 종료'], 'max_transfer_bytes':MAX_BYTES,
                 'max_results':MAX_RESULTS,'handle_limit':128,'thread_limit':64,
+                'manual_map':{'function':'0x878','version':MANUAL_MAP_VERSION,'request_bytes':MANUAL_MAP_BYTES,
+                              'failcode':{'success':0,'field':'failcode','unknown':None},
+                              'failmessage':{'field':'failmessage','bytes':MANUAL_MAP_FAILMESSAGE_BYTES,
+                                             'encoding':'ascii','success':'','unknown':None},
+                              'transport':'kernel_ioctl','identity_check':'preflight_only',
+                              'note':MANUAL_MAP_IDENTITY_NOTE,'unmap':False,'recover':False},
                 'dumps':{'max_total_bytes':MAX_DUMP_BYTES,'max_chunk_bytes':MAX_CHUNK_BYTES,
                          'kernel_read_bytes':4096,'modes':['range','image','images'],
                          'resume':True,'download_ranges':True}}
@@ -860,7 +976,7 @@ def install(app,driver):
         limit=W.MAX_PDB_BYTES if kind=='pdb' else W.MAX_DLL_BYTES
         length=request.headers.get('content-length')
         if length and (not length.isdigit() or int(length)>limit):raise HTTPException(413,'파일 크기 상한을 초과했습니다')
-        root=studio.workbench.symbols.root if kind=='pdb' else Path(__file__).parent/'assets'
+        root=studio.workbench.symbols.root if kind=='pdb' else data_path('assets')
         root.mkdir(parents=True,exist_ok=True)
         if kind=='dll' and len(list(root.glob('*.dll')))>=32:raise HTTPException(400,'추가한 DLL 파일 저장 상한 32개를 초과했습니다')
         path=root/(uuid.uuid4().hex+'.'+kind);count=0

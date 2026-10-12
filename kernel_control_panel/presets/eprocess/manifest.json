@@ -1,0 +1,967 @@
+{
+  "schema_version": 1,
+  "structure": "_EPROCESS",
+  "architecture": "x64",
+  "pointer_size": 8,
+  "source_root_url": "https://www.vergiliusproject.com/kernels/x64",
+  "generated_at_utc": "2026-10-09T15:37:02.987264+00:00",
+  "family_count": 8,
+  "release_count": 30,
+  "preset_count": 30,
+  "families": [
+    "https://www.vergiliusproject.com/kernels/x64/server-2022",
+    "https://www.vergiliusproject.com/kernels/x64/windows-10",
+    "https://www.vergiliusproject.com/kernels/x64/windows-11",
+    "https://www.vergiliusproject.com/kernels/x64/windows-7",
+    "https://www.vergiliusproject.com/kernels/x64/windows-8",
+    "https://www.vergiliusproject.com/kernels/x64/windows-8.1",
+    "https://www.vergiliusproject.com/kernels/x64/windows-vista",
+    "https://www.vergiliusproject.com/kernels/x64/windows-xp"
+  ],
+  "presets": [
+    {
+      "id": "x64/server-2022/21h2",
+      "family": "server-2022",
+      "release": "21h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        20348
+      ],
+      "product_types": [
+        2,
+        3
+      ],
+      "service_pack": 0,
+      "size": 2944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/server-2022/21h2/_EPROCESS",
+      "content_sha256": "34712a0fea12041a9b13adb05fbc2ef43d0d8a95a6a1faebf779f505d690fe5f",
+      "downloaded_at_utc": "2026-10-09T15:30:26.043661+00:00",
+      "family_aliases": [
+        "server-2022"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "server-2022-21h2.json",
+      "field_count": 315,
+      "preset_sha256": "36def78106b6d8ea1a6cfc8976d614bf252cf7893ab9b6e6f90223acf40c51c8"
+    },
+    {
+      "id": "x64/windows-10/1507",
+      "family": "windows-10",
+      "release": "1507",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        10240
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 1944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1507/_EPROCESS",
+      "content_sha256": "520f30b3d2554219e7182e101ecee7b47f42f8d3852e468f101cd1430e51f55a",
+      "downloaded_at_utc": "2026-10-09T15:30:26.032791+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1507.json",
+      "field_count": 203,
+      "preset_sha256": "9e89d2d56b494640f8b1d49bc0d20ce4328db5fe46f29d58c63526a02bd34624"
+    },
+    {
+      "id": "x64/windows-10/1511",
+      "family": "windows-10",
+      "release": "1511",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        10586
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 1928,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1511/_EPROCESS",
+      "content_sha256": "297335c9bd0999b6c7123679554248e47199bcc44d69699d34675c61c5f65106",
+      "downloaded_at_utc": "2026-10-09T15:30:26.030707+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1511.json",
+      "field_count": 205,
+      "preset_sha256": "b2774e1acb2f80f473691905bc8abc07b8590f418f2c4f269b0cf43a03838a0f"
+    },
+    {
+      "id": "x64/windows-10/1607",
+      "family": "windows-10",
+      "release": "1607",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        14393
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 1968,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1607/_EPROCESS",
+      "content_sha256": "995fc4c7d1f3b01b730b37d4e70b44c370b74dc2010f1d5ffa65f48901123869",
+      "downloaded_at_utc": "2026-10-09T15:30:25.943809+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1607.json",
+      "field_count": 217,
+      "preset_sha256": "b88c568c1bc346f3bf2f2e81659d000759fb924f587a7c4c2e1227d31db5a1d6"
+    },
+    {
+      "id": "x64/windows-10/1703",
+      "family": "windows-10",
+      "release": "1703",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        15063
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2072,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1703/_EPROCESS",
+      "content_sha256": "e4636d0d3e81745e7aa1170835d84cef10ae6b6c3a3b3206e96455e22a1db30e",
+      "downloaded_at_utc": "2026-10-09T15:30:31.772823+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1703.json",
+      "field_count": 236,
+      "preset_sha256": "e14fadf9928069fbea044bb05228b1c095152e7516d5efc3b51573b49c6f0369"
+    },
+    {
+      "id": "x64/windows-10/1709",
+      "family": "windows-10",
+      "release": "1709",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        16299
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2104,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1709/_EPROCESS",
+      "content_sha256": "5c1b70bae2e5e6a602018703899964b477257b0a62ca546a7f08b1489354be92",
+      "downloaded_at_utc": "2026-10-09T15:30:32.044122+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1709.json",
+      "field_count": 268,
+      "preset_sha256": "09fe3d87035ed8714abc827192ab8dec4a591e7ca3637c52105b90bf1348f1a0"
+    },
+    {
+      "id": "x64/windows-10/1803",
+      "family": "windows-10",
+      "release": "1803",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        17134
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2120,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1803/_EPROCESS",
+      "content_sha256": "e80953b919c70c8f248f8b7c66a2ea6521f0cc8150587004fde47af0a5925cd8",
+      "downloaded_at_utc": "2026-10-09T15:30:34.056928+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1803.json",
+      "field_count": 276,
+      "preset_sha256": "c3f9f382d68c56c9cd6580e6f5a8c8ee507560777a738df0f2ef2a09b960d611"
+    },
+    {
+      "id": "x64/windows-10/1809",
+      "family": "windows-10",
+      "release": "1809",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        17763
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2128,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1809/_EPROCESS",
+      "content_sha256": "8b82a9648ca583a590d7603dcc22b4866d300f27c74152de3b35de549e7f9d30",
+      "downloaded_at_utc": "2026-10-09T15:30:34.612121+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1809.json",
+      "field_count": 287,
+      "preset_sha256": "d88a5cf3ef98ef7fb7842e8b451f13d070c299c9c1d248b2b0fd2279be9e96ad"
+    },
+    {
+      "id": "x64/windows-10/1903",
+      "family": "windows-10",
+      "release": "1903",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        18362
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2176,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1903/_EPROCESS",
+      "content_sha256": "805bc0c8c00aa9bff695c17918616f775887faf01ed9cce189ee997704ec6f9b",
+      "downloaded_at_utc": "2026-10-09T15:30:39.591779+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1903.json",
+      "field_count": 286,
+      "preset_sha256": "94a8a13300f2da92d164d4db65c4e8812f0d5e8b21d980da30ceb275aca54dd5"
+    },
+    {
+      "id": "x64/windows-10/1909",
+      "family": "windows-10",
+      "release": "1909",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        18363
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2176,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/1909/_EPROCESS",
+      "content_sha256": "8ed885d692ba92a8f28ad622b2d5b69276fe332504a1d5c3c3476161cb3fe3d3",
+      "downloaded_at_utc": "2026-10-09T15:30:40.154364+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-1909.json",
+      "field_count": 286,
+      "preset_sha256": "46296f608833dc4548621e8bf71052d529ec185bbb65d9523aba356d6962f06e"
+    },
+    {
+      "id": "x64/windows-10/2004",
+      "family": "windows-10",
+      "release": "2004",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        19041
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2624,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/2004/_EPROCESS",
+      "content_sha256": "85f02c678e82c9e059bb9edfc7aa6c3153559a5ca08a312d8bd2a26625a1113b",
+      "downloaded_at_utc": "2026-10-09T15:30:41.139178+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-2004.json",
+      "field_count": 296,
+      "preset_sha256": "cd9015dde336e18ca3dcdb3585b6a12740356c4987d7f0ae5c9a9c2c44ad0cf8"
+    },
+    {
+      "id": "x64/windows-10/20h2",
+      "family": "windows-10",
+      "release": "20h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        19042
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2624,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/20h2/_EPROCESS",
+      "content_sha256": "7b6900e4b80d804edcf2d59997e6855432b68ac0dc5655f7d5034855738427a9",
+      "downloaded_at_utc": "2026-10-09T15:30:41.991695+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-20h2.json",
+      "field_count": 296,
+      "preset_sha256": "78b486ee9a996cf0e9cbd026a90e4949a251ebeb1d03a2078792265882d9e979"
+    },
+    {
+      "id": "x64/windows-10/21h1",
+      "family": "windows-10",
+      "release": "21h1",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        19043
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2624,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/21h1/_EPROCESS",
+      "content_sha256": "b9d6310ec0d993ba45a0a09f54125e12f3680aac2f9bfb93bbf9d598153b3c01",
+      "downloaded_at_utc": "2026-10-09T15:30:47.093085+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-21h1.json",
+      "field_count": 310,
+      "preset_sha256": "76e6ca37f57d27859c0c1cf9e434fcbd70dff5af67710645c57c00b5fb1c4b2c"
+    },
+    {
+      "id": "x64/windows-10/21h2",
+      "family": "windows-10",
+      "release": "21h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        19044
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2624,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/21h2/_EPROCESS",
+      "content_sha256": "1c7aee47139a8910f3a5c05014b680076070f34e781e8f194e449f16d7b1de6c",
+      "downloaded_at_utc": "2026-10-09T15:30:47.321872+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-21h2.json",
+      "field_count": 311,
+      "preset_sha256": "c08f2dde7c7178a3271fcb5b932a5de6f496d8de08164644e4d3937be172ea79"
+    },
+    {
+      "id": "x64/windows-10/22h2",
+      "family": "windows-10",
+      "release": "22h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        19045
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2624,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-10/22h2/_EPROCESS",
+      "content_sha256": "8e968b8f36064bc09c8578f76f236ab5b250ea1250aa2352e59596522d767d97",
+      "downloaded_at_utc": "2026-10-09T15:30:48.381751+00:00",
+      "family_aliases": [
+        "windows-10"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-10-22h2.json",
+      "field_count": 312,
+      "preset_sha256": "b3cd6d0c9bc1be866148348de33536aebd64e30f25dc266b52fbeb32b4343760"
+    },
+    {
+      "id": "x64/windows-11/21h2",
+      "family": "windows-11",
+      "release": "21h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        22000
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/21h2/_EPROCESS",
+      "content_sha256": "edbeae87dc74641207f0b4779c1b32be563b0c1711a516aef7df1338836682e2",
+      "downloaded_at_utc": "2026-10-09T15:30:49.291540+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-11-21h2.json",
+      "field_count": 318,
+      "preset_sha256": "f9c919b90871fd5e52d08a7b2010b1ac396604ec966405888bb57a1dfca3273e"
+    },
+    {
+      "id": "x64/windows-11/22h2",
+      "family": "windows-11",
+      "release": "22h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        22621
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/22h2/_EPROCESS",
+      "content_sha256": "7bfefbe07f10d9652c3d1f2ed26ede4959677ad00020415385bff609b0e540c6",
+      "downloaded_at_utc": "2026-10-09T15:30:54.933750+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-11-22h2.json",
+      "field_count": 328,
+      "preset_sha256": "e67de798a8fff0c7a219b98528e6c7a6755f632f656916eafe9fc72622566a1e"
+    },
+    {
+      "id": "x64/windows-11/23h2",
+      "family": "windows-11",
+      "release": "23h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        22631
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/23h2/_EPROCESS",
+      "content_sha256": "72cf80a99cac3e8a9c929324fbb340a7ecb6cb58797c6919b90846007680b6cc",
+      "downloaded_at_utc": "2026-10-09T15:30:55.531319+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-11-23h2.json",
+      "field_count": 330,
+      "preset_sha256": "13cfda18f7882d5e2c520843009bb7f8f4a314d393f571eefa225bf77c48bb4b"
+    },
+    {
+      "id": "x64/windows-11/24h2",
+      "family": "windows-11",
+      "release": "24h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        26100
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2112,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/24h2/_EPROCESS",
+      "content_sha256": "63ec3aebfa8a3688eb559c3dd575050c06d430f9f3c7af3a880f61b7f9a4e668",
+      "downloaded_at_utc": "2026-10-09T15:30:56.150979+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-11-24h2.json",
+      "field_count": 373,
+      "preset_sha256": "ae737522749734a960d9b06a5b0de5070848c7bdd03edaa907f266ca5299b3bf"
+    },
+    {
+      "id": "x64/windows-11/25h2",
+      "family": "windows-11",
+      "release": "25h2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        26200
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2112,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/25h2/_EPROCESS",
+      "content_sha256": "9215f01324cd20d14491f66461fad52412cd1556568eff70b8cb919697fa27ad",
+      "downloaded_at_utc": "2026-10-09T15:30:57.711643+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-11-25h2.json",
+      "field_count": 374,
+      "preset_sha256": "bbd62830faf9c252c059022f34106700a168a65fcc83f03ed1e4d83fdf7b6de7"
+    },
+    {
+      "id": "x64/windows-11/insider-preview-jun-2021",
+      "family": "windows-11",
+      "release": "insider-preview-jun-2021",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 2944,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-11/insider-preview-jun-2021/_EPROCESS",
+      "content_sha256": "f27bd51b2655404bd37df38c00e22284e2f79004834d950f3b5566d8b796c60b",
+      "downloaded_at_utc": "2026-10-09T15:31:04.280215+00:00",
+      "family_aliases": [
+        "windows-11"
+      ],
+      "nt_major": 10,
+      "nt_minor": 0,
+      "auto_select": false,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source.",
+        "June 2021 Insider source does not disclose an exact build; manual-only research preset."
+      ],
+      "file": "windows-11-insider-preview-jun-2021.json",
+      "field_count": 318,
+      "preset_sha256": "d8646c265bdcb78250e3e1f35486ec87334e41d7c80617b4a0d34d72461ce27b"
+    },
+    {
+      "id": "x64/windows-7/rtm",
+      "family": "windows-7",
+      "release": "rtm",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        7600
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 0,
+      "size": 1232,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-7/rtm/_EPROCESS",
+      "content_sha256": "d842257b72716293aeea51538b1eaace64b8ef0726fb88e9932190f7843c3d60",
+      "downloaded_at_utc": "2026-10-09T15:31:04.410808+00:00",
+      "family_aliases": [
+        "windows-7",
+        "server-2008-r2"
+      ],
+      "nt_major": 6,
+      "nt_minor": 1,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-7-rtm.json",
+      "field_count": 141,
+      "preset_sha256": "bb0ce36166d29d0e02087c0fced615bcaea9922a8da1fffb55f0310096093d12"
+    },
+    {
+      "id": "x64/windows-7/sp1",
+      "family": "windows-7",
+      "release": "sp1",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        7601
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 1,
+      "size": 1232,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-7/sp1/_EPROCESS",
+      "content_sha256": "43c3b1eacb864d2a55756b50c22269781f2074aeb9d3802e8d8c8727e32eea16",
+      "downloaded_at_utc": "2026-10-09T15:31:05.190566+00:00",
+      "family_aliases": [
+        "windows-7",
+        "server-2008-r2"
+      ],
+      "nt_major": 6,
+      "nt_minor": 1,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-7-sp1.json",
+      "field_count": 141,
+      "preset_sha256": "9d1a204bbb16ff2134f2f77b6dc2ee94ab08edd2cae6c3a269595e61e7d4efb5"
+    },
+    {
+      "id": "x64/windows-8.1/rtm",
+      "family": "windows-8.1",
+      "release": "rtm",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        9600
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 0,
+      "size": 1720,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-8.1/rtm/_EPROCESS",
+      "content_sha256": "67827ab4047c5c949f0fd6f480f663d5311a3322f807fc9ae1ef579670c21759",
+      "downloaded_at_utc": "2026-10-09T15:31:10.460645+00:00",
+      "family_aliases": [
+        "windows-8.1",
+        "server-2012-r2"
+      ],
+      "nt_major": 6,
+      "nt_minor": 3,
+      "auto_select": false,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source.",
+        "RTM and Update 1 share base build9600 and SP0 but have separate source layouts; no automatic selection without release/revision evidence."
+      ],
+      "file": "windows-8.1-rtm.json",
+      "field_count": 167,
+      "preset_sha256": "4c8ed820d8352c7c806b59f2d15f1ec3b5be52b2016dd226179b4d517e312d1b"
+    },
+    {
+      "id": "x64/windows-8.1/update-1",
+      "family": "windows-8.1",
+      "release": "update-1",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        9600
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 0,
+      "size": 1752,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-8.1/update-1/_EPROCESS",
+      "content_sha256": "b0d91bd3c57195805ae5739fbf82aabba83d4c0223ca9969a25819b49df7d76e",
+      "downloaded_at_utc": "2026-10-09T15:31:11.339334+00:00",
+      "family_aliases": [
+        "windows-8.1",
+        "server-2012-r2"
+      ],
+      "nt_major": 6,
+      "nt_minor": 3,
+      "auto_select": false,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source.",
+        "RTM and Update 1 share base build9600 and SP0 but have separate source layouts; no automatic selection without release/revision evidence."
+      ],
+      "file": "windows-8.1-update-1.json",
+      "field_count": 169,
+      "preset_sha256": "3f592a5707ed04854897d6dd00b7689e67d2d7ba7860300f3d77372cc02f6c55"
+    },
+    {
+      "id": "x64/windows-8/rtm",
+      "family": "windows-8",
+      "release": "rtm",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        9200
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 0,
+      "size": 1632,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-8/rtm/_EPROCESS",
+      "content_sha256": "6ed285f6b9dab3f9ec4255e4d788711e0b2104b681fee3cb82cc52aee2f3575b",
+      "downloaded_at_utc": "2026-10-09T15:31:06.813517+00:00",
+      "family_aliases": [
+        "windows-8",
+        "server-2012"
+      ],
+      "nt_major": 6,
+      "nt_minor": 2,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-8-rtm.json",
+      "field_count": 158,
+      "preset_sha256": "2dd0b0b5f6479352169237030466334aca0cdcce684d1e068f61d81e4e6759ed"
+    },
+    {
+      "id": "x64/windows-vista/rtm",
+      "family": "windows-vista",
+      "release": "rtm",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        6000
+      ],
+      "product_types": [
+        1
+      ],
+      "service_pack": 0,
+      "size": 1000,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-vista/rtm/_EPROCESS",
+      "content_sha256": "0684179e75c127d19c65e39eaea191f84ab60ac8bc0c6965beba58e869f939b4",
+      "downloaded_at_utc": "2026-10-09T15:31:12.249490+00:00",
+      "family_aliases": [
+        "windows-vista"
+      ],
+      "nt_major": 6,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-vista-rtm.json",
+      "field_count": 133,
+      "preset_sha256": "fe1d6907f22d909551531cf0affae8f86e8792adb4a7122da840db286140c7db"
+    },
+    {
+      "id": "x64/windows-vista/sp1",
+      "family": "windows-vista",
+      "release": "sp1",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        6001
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 1,
+      "size": 1000,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-vista/sp1/_EPROCESS",
+      "content_sha256": "053ccc43eb40dc442dc1337b09997486f5432205cde24bac096671869dfcd387",
+      "downloaded_at_utc": "2026-10-09T15:31:12.759687+00:00",
+      "family_aliases": [
+        "windows-vista",
+        "server-2008"
+      ],
+      "nt_major": 6,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source.",
+        "Server2008 RTM reports base6001; its service-pack designation differs from VistaSP1; inspect product-specific matching."
+      ],
+      "file": "windows-vista-sp1.json",
+      "field_count": 137,
+      "preset_sha256": "2e46a5881c666a13a338863a91c2adb850af5db719865ea3a63aa38cc95e741f"
+    },
+    {
+      "id": "x64/windows-vista/sp2",
+      "family": "windows-vista",
+      "release": "sp2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        6002
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 2,
+      "size": 1000,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-vista/sp2/_EPROCESS",
+      "content_sha256": "9c799c93362063b455c27c22f0c1e46d9e4afab42a701c6a956176ca291d5557",
+      "downloaded_at_utc": "2026-10-09T15:31:16.478736+00:00",
+      "family_aliases": [
+        "windows-vista",
+        "server-2008"
+      ],
+      "nt_major": 6,
+      "nt_minor": 0,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-vista-sp2.json",
+      "field_count": 137,
+      "preset_sha256": "70f4c61fec7d6e676391ac1b1eab4fc425b18c301db8f02934da87a59cc157ba"
+    },
+    {
+      "id": "x64/windows-xp/sp2",
+      "family": "windows-xp",
+      "release": "sp2",
+      "architecture": "x64",
+      "pointer_size": 8,
+      "build_numbers": [
+        3790
+      ],
+      "product_types": [
+        1,
+        2,
+        3
+      ],
+      "service_pack": 2,
+      "size": 992,
+      "source_url": "https://www.vergiliusproject.com/kernels/x64/windows-xp/sp2/_EPROCESS",
+      "content_sha256": "1b450def366162f1290e87d6d4cd4bc254b95c64a506b11cf3008982818f06c3",
+      "downloaded_at_utc": "2026-10-09T15:31:17.479321+00:00",
+      "family_aliases": [
+        "windows-xp-x64",
+        "server-2003"
+      ],
+      "nt_major": 5,
+      "nt_minor": 2,
+      "auto_select": true,
+      "matching_notes": [
+        "Base build is exact; UBR/revision layout identity is not asserted by the source."
+      ],
+      "file": "windows-xp-sp2.json",
+      "field_count": 111,
+      "preset_sha256": "44c7adc9cfe9f1665938c2e047626e1ee95c1bff5ebd855f3de74e78525614be"
+    }
+  ],
+  "missing": [],
+  "errors": [],
+  "fetch_statistics": {
+    "unique_urls": 749,
+    "network_fetches": 0,
+    "cache_hits": 820,
+    "max_workers": 4
+  },
+  "selection_policy": "Exact architecture/base build/product type/service pack only; ambiguous release and undisclosed Insider build require manual choice. Never substitute latest preset.",
+  "mapping_sources": [
+    "https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information",
+    "https://learn.microsoft.com/en-us/windows/release-health/release-information",
+    "https://learn.microsoft.com/en-us/windows/win32/msi/operating-system-property-values",
+    "https://learn.microsoft.com/en-us/windows/release-health/windows-server-release-info",
+    "https://support.microsoft.com/en-us/servicing/os/windows/2018/04/ms10-015-vulnerabilities-in-windows-kernel-could-allow-elevation-of-privilege"
+  ],
+  "source_note": "Vergilius release pages expose layout size/offsets but no exact kernel revision/PDB identity; metadata build mappings come from Microsoft release documentation, not asserted symbol identity."
+}

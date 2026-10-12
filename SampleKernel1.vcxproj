@@ -70,6 +70,7 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -116,7 +117,12 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Inf Include="SampleKernel1.inf" />
+    <Inf Include="SampleKernel1.inf">
+      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
+      <DateStamp>10/12/2026</DateStamp>
+      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
+      <TimeStamp>2.6.0.1</TimeStamp>
+    </Inf>
   </ItemGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
@@ -130,6 +136,15 @@
     <ClInclude Include="utils.hpp" />
     <ClInclude Include="remote_call.hpp" />
     <ClInclude Include="remote_call_protocol.h" />
+    <ClInclude Include="driver_version.h" />
+    <ClInclude Include="MANUAL_KERNEL.hpp" />
+    <ClInclude Include="manual_map_protocol.h" />
+    <ClInclude Include="ob_callbacks.hpp" />
+    <ClInclude Include="ob_callbacks_protocol.h" />
+    <ClInclude Include="helper\process_object_layouts.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="driver_version.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

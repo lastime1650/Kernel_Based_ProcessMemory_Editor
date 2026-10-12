@@ -3,9 +3,12 @@
 #include <windows.h>
 #include <winioctl.h>
 #include "remote_call_protocol.h"
+#include "manual_map_protocol.h"
+#include "ob_callbacks_protocol.h"
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstddef>
 
 //
 // ============================================================
@@ -116,6 +119,15 @@
 
 #define IOCTL_HELPER_SET_THREAD_HIDE_FROM_DEBUGGER \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x821, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_HELPER_QUERY_PROCESS_OBJECT \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x825, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_HELPER_READ_PROCESS_OBJECT \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x826, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define PROCESS_OBJECT_SNAPSHOT_VERSION 1UL
+#define PROCESS_OBJECT_SNAPSHOT_MAX_SIZE 4096UL
 
 //
 // ============================================================
@@ -422,7 +434,50 @@ namespace KernelClient
         NTSTATUS ResultStatus;
     } THREAD_HIDE_REQUEST;
 
+    typedef struct _QUERY_PROCESS_OBJECT_REQUEST
+    {
+        ULONG ProcessId;
+        NTSTATUS ResultStatus;
+        // Snapshot only: this numeric address does not pin an EPROCESS.
+        ULONGLONG EprocessAddress;
+        ULONGLONG ProcessStartKey;
+    } QUERY_PROCESS_OBJECT_REQUEST;
+
+    typedef struct _READ_PROCESS_OBJECT_REQUEST
+    {
+        ULONG StructSize;
+        ULONG Version;
+        ULONG ProcessId;
+        ULONG Size;
+        ULONGLONG ExpectedEprocessAddress;
+        ULONGLONG ExpectedProcessStartKey;
+        NTSTATUS ResultStatus;
+        ULONG BytesRead;
+        ULONGLONG EprocessAddress;
+        ULONGLONG ProcessStartKey;
+        UCHAR Data[PROCESS_OBJECT_SNAPSHOT_MAX_SIZE];
+    } READ_PROCESS_OBJECT_REQUEST;
+
 #pragma pack(pop)
+
+    static_assert(sizeof(QUERY_PROCESS_OBJECT_REQUEST) == 24, "process-object query ABI");
+    static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ProcessId) == 0, "process-object PID offset");
+    static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ResultStatus) == 4, "process-object status offset");
+    static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, EprocessAddress) == 8, "process-object address offset");
+    static_assert(offsetof(QUERY_PROCESS_OBJECT_REQUEST, ProcessStartKey) == 16, "process-object start-key offset");
+
+    static_assert(sizeof(READ_PROCESS_OBJECT_REQUEST) == 4152, "process-object snapshot ABI");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, StructSize) == 0, "snapshot struct-size offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Version) == 4, "snapshot version offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ProcessId) == 8, "snapshot PID offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Size) == 12, "snapshot size offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ExpectedEprocessAddress) == 16, "snapshot expected-address offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ExpectedProcessStartKey) == 24, "snapshot expected-key offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ResultStatus) == 32, "snapshot status offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, BytesRead) == 36, "snapshot bytes-read offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, EprocessAddress) == 40, "snapshot address offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ProcessStartKey) == 48, "snapshot start-key offset");
+    static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Data) == 56, "snapshot data offset");
 
     //
     // Driver Interface Helper Class
@@ -481,6 +536,53 @@ namespace KernelClient
                 &statusOut, sizeof(statusOut),
                 &bytes, nullptr
             );
+        }
+
+        bool GetObCallbacksStatus(OB_CALLBACK_STATUS_REQUEST& statusOut)
+        {
+            if (!Open()) return false;
+            statusOut = {};
+            statusOut.StructSize = sizeof(statusOut);
+            statusOut.Version = OB_CALLBACK_STATUS_VERSION;
+            DWORD bytes = 0;
+            if (!DeviceIoControl(m_deviceHandle, IOCTL_HELPER_QUERY_OB_CALLBACKS,
+                &statusOut, sizeof(statusOut), &statusOut, sizeof(statusOut), &bytes, nullptr))
+                return false;
+            return bytes == sizeof(statusOut) && statusOut.StructSize == sizeof(statusOut) &&
+                statusOut.Version == OB_CALLBACK_STATUS_VERSION && statusOut.ResultStatus >= 0;
+        }
+
+        // Success accepts the background job. GetObCallbacksStatus reports its actual completion.
+        bool RegisterObCallbacks(ULONG minimum, ULONG maximum, ULONG maximumFraction,
+            OB_CALLBACK_CONTROL_REQUEST& result)
+        {
+            result = {};
+            result.StructSize = sizeof(result);
+            result.Version = OB_CALLBACK_STATUS_VERSION;
+            result.ResultStatus = static_cast<NTSTATUS>(0xC0000001L);
+            result.MinimumAltitude = minimum;
+            result.MaximumAltitude = maximum;
+            result.MaximumFraction = maximumFraction;
+            if (!Open()) return false;
+            DWORD bytes = 0;
+            return DeviceIoControl(m_deviceHandle, IOCTL_HELPER_REGISTER_OB_CALLBACKS,
+                &result, sizeof(result), &result, sizeof(result), &bytes, nullptr) &&
+                bytes == sizeof(result) && result.StructSize == sizeof(result) &&
+                result.Version == OB_CALLBACK_STATUS_VERSION && result.ResultStatus >= 0;
+        }
+
+        bool UnregisterObCallbacks(OB_CALLBACK_CONTROL_REQUEST& result)
+        {
+            result = {};
+            result.StructSize = sizeof(result);
+            result.Version = OB_CALLBACK_STATUS_VERSION;
+            result.ResultStatus = static_cast<NTSTATUS>(0xC0000001L);
+            if (!Open()) return false;
+            DWORD bytes = 0;
+            return DeviceIoControl(m_deviceHandle, IOCTL_HELPER_UNREGISTER_OB_CALLBACKS,
+                &result, sizeof(result), &result, sizeof(result), &bytes, nullptr) &&
+                bytes == sizeof(result) && result.StructSize == sizeof(result) &&
+                result.Version == OB_CALLBACK_STATUS_VERSION && result.ResultStatus >= 0;
         }
 
         //
@@ -612,6 +714,59 @@ namespace KernelClient
                 return true;
             }
             return false;
+        }
+
+        // The returned address is for observation only and can become stale
+        // immediately after the request completes. ProcessStartKey identifies
+        // this process instance even if Windows later reuses its PID.
+        bool QueryProcessObject(ULONG pid, ULONGLONG& eprocessAddressOut, ULONGLONG* processStartKeyOut = nullptr)
+        {
+            eprocessAddressOut = 0;
+            if (processStartKeyOut) *processStartKeyOut = 0;
+            if (!Open()) return false;
+
+            QUERY_PROCESS_OBJECT_REQUEST req = {};
+            req.ProcessId = pid;
+            req.ResultStatus = static_cast<NTSTATUS>(0xC0000001L);
+            DWORD bytes = 0;
+            BOOL ok = DeviceIoControl(m_deviceHandle, IOCTL_HELPER_QUERY_PROCESS_OBJECT,
+                &req, sizeof(req), &req, sizeof(req), &bytes, nullptr);
+            if (!ok || bytes != sizeof(req) || req.ResultStatus < 0) return false;
+
+            eprocessAddressOut = req.EprocessAddress;
+            if (processStartKeyOut) *processStartKeyOut = req.ProcessStartKey;
+            return true;
+        }
+
+        bool ReadProcessObject(ULONG pid, ULONGLONG expectedEprocessAddress, ULONGLONG expectedProcessStartKey,
+            ULONG size, std::vector<UCHAR>& dataOut, ULONG* bytesReadOut = nullptr, NTSTATUS* resultStatusOut = nullptr)
+        {
+            dataOut.clear();
+            if (bytesReadOut) *bytesReadOut = 0;
+            if (resultStatusOut) *resultStatusOut = static_cast<NTSTATUS>(0xC0000001L);
+            if (!pid || !expectedEprocessAddress || !size || size > PROCESS_OBJECT_SNAPSHOT_MAX_SIZE || !Open())
+                return false;
+
+            READ_PROCESS_OBJECT_REQUEST req = {};
+            req.StructSize = sizeof(req);
+            req.Version = PROCESS_OBJECT_SNAPSHOT_VERSION;
+            req.ProcessId = pid;
+            req.Size = size;
+            req.ExpectedEprocessAddress = expectedEprocessAddress;
+            req.ExpectedProcessStartKey = expectedProcessStartKey;
+            req.ResultStatus = static_cast<NTSTATUS>(0xC0000001L);
+            DWORD bytes = 0;
+            BOOL ok = DeviceIoControl(m_deviceHandle, IOCTL_HELPER_READ_PROCESS_OBJECT,
+                &req, sizeof(req), &req, sizeof(req), &bytes, nullptr);
+            if (!ok || bytes != sizeof(req)) return false;
+            if (bytesReadOut) *bytesReadOut = req.BytesRead;
+            if (resultStatusOut) *resultStatusOut = req.ResultStatus;
+            if (req.ResultStatus != 0 || req.BytesRead != size ||
+                req.EprocessAddress != expectedEprocessAddress || req.ProcessStartKey != expectedProcessStartKey)
+                return false;
+
+            dataOut.assign(req.Data, req.Data + size);
+            return true;
         }
 
         bool QueryProcessHandles(ULONGLONG pid, std::vector<PROCESS_HANDLE_ENTRY>& handlesOut, ULONG maxHandles = 128)

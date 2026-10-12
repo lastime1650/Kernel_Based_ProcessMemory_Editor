@@ -1,8 +1,6 @@
 @echo off
-title SampleKernel1 Web Control Panel
-echo ======================================================================
-echo          Starting SampleKernel1 Web Control Panel (FastAPI + React)
-echo ======================================================================
+title Kernel Studio
+echo Starting Kernel Studio - default address: http://127.0.0.1:8005/
 cd /d "%~dp0"
-python -m uvicorn server:app --host 127.0.0.1 --port 8000
+python kernel_studio.py %*
 pause

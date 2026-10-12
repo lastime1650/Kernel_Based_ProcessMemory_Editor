@@ -1,121 +1,112 @@
-# Guía de instalación y uso
+# Guía de configuración y uso
 
-[Introducción en español](../../README.es.md) · [한국어](../ko/GUIDE.md) · [English](../en/GUIDE.md) · [简体中文](../zh-CN/GUIDE.md)
+[Resumen en español](../../README.es.md) · [한국어](../ko/GUIDE.md) · [English](../en/GUIDE.md) · [简体中文](../zh-CN/GUIDE.md)
 
-## Arquitectura y requisitos
+**Controlador 2.6.0.1 · Kernel Studio 3.2.2 · Windows x64 · ManualV4 ABI v3 / 2104 bytes**
 
-La ruta activa es navegador → FastAPI → `KernelOnlyBridge` → `DeviceIoControl` → `SampleKernel1.sys`. El dispositivo es `\\.\MyDriver`. Python conecta mediante `CreateFileW`, `DeviceIoControl` y `CloseHandle`. Las lecturas, búsquedas y mapas del destino pasan por el kernel; NumPy, PE e instrucciones se analizan en modo usuario sobre los bytes recibidos. `memory_scanner.py` conserva un escáner Win32 antiguo que el servidor actual no utiliza para acceder al destino.
+> [!IMPORTANT]
+> Use el controlador y el panel actualizados juntos. El panel muestra la **versión cargada** del dispositivo, no la versión del `.sys` en disco. Compilar y cargar el controlador son comprobaciones distintas.
 
-- Windows x64, Python de 64 bits, herramientas C++ y Windows SDK/WDK compatibles.
-- Entorno verificado: Python 3.14.5, Visual Studio 2022 Professional, SDK 10.0.26100.0 y WDK 10.0.26100.6584.
-- Dependencias originales: FastAPI, Uvicorn, psutil, Capstone 5, Keystone 0.9.2 y NumPy. Se conservan los rangos; no hay archivo de bloqueo reproducible.
-- La solución declara ARM64, pero los contextos y llamadas remotas dependen de x64. ARM64 no está verificado.
-- La interfaz sigue en coreano; los nombres coreanos siguientes permiten identificar los controles.
+## 1. Preparar y compilar
 
-## Compilación y carga del controlador
+Use Windows x64, Python de 64 bits, herramientas C++ de Visual Studio 2022 y Windows SDK/WDK compatibles. La validación de desarrollo utilizó Python 3.14.5 y VS 2022 Professional. Las configuraciones ARM64 no demuestran compatibilidad ARM64. La interfaz es coreana; conservamos sus etiquetas para localizar los controles.
 
-Prepare Visual Studio/SDK/WDK siguiendo las [instrucciones de Microsoft](https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk). Ejecute los comandos en Developer PowerShell desde la raíz. Se verificó el entorno indicado, no todas las combinaciones de herramientas.
+Desde Developer PowerShell, en la raíz:
 
 ```powershell
-msbuild SampleKernel1.sln /m /p:Configuration=Release /p:Platform=x64
-msbuild SampleKernel1.sln /m /p:Configuration=Debug /p:Platform=x64
+msbuild SampleKernel1.sln /t:Rebuild /m /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off
+msbuild SampleKernel1.sln /t:Rebuild /m /p:Configuration=Debug /p:Platform=x64 /p:SignMode=Off
 ```
 
-```powershell
-sc.exe create SampleKernel1 type= kernel start= demand binPath= "C:\Kernel_Based_ProcessMemory_Editor\x64\Release\SampleKernel1.sys"
-sc.exe start SampleKernel1
-sc.exe query SampleKernel1
-```
+Las salidas son `x64\Release\SampleKernel1.sys` y `x64\Debug\SampleKernel1.sys`. `SignMode=Off` genera archivos sin firmar; no hace que Windows los acepte. Use la firma y el despliegue apropiados para su sistema de pruebas. El repositorio fuente no es un instalador certificado.
 
+Antes de sustituir un controlador cargado, cierre los clientes y restaure congelaciones, parches y breakpoints gestionados cuando corresponda. Después siga su procedimiento habitual de actualización. El dispositivo es `\\.\MyDriver`.
 
-El ejemplo `sc.exe` registra un servicio manual para un **controlador correctamente firmado que el sistema de prueba permite cargar**. Use un terminal de administrador y sustituya la ruta. Si el servicio existe, revise `sc.exe qc SampleKernel1` antes de modificarlo. Siga la [documentación de firma](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/driver-signing). No se incluyen certificados ni scripts para cambiar protecciones del sistema.
-
-El INF original contiene valores de plantilla para fabricante, ID de hardware y DriverVer. Una distribución pública requiere configurarlos en su copia, validar y firmar el paquete. No es un instalador INF terminado. Antes de reemplazar el controlador, cierre servidor/clientes y restaure parches, congelaciones y puntos de interrupción según corresponda. Ejecute `sc.exe stop SampleKernel1`, prepare el nuevo archivo y vuelva a iniciar. Use `sc.exe delete SampleKernel1` solo para eliminar el servicio. Liberar seguimiento o descargar el controlador no termina un hilo de función ya creado.
-
-Auxiliar PDB opcional: ejecute `build_pdb_symbols.cmd` en `kernel_control_panel/native`. El script y `Symbols.dia` de `image_workbench.py` fijan rutas de VS 2022 Professional. Ajuste ambas en su copia si la instalación difiere. Los símbolos requieren que GUID y Age de CodeView coincidan con la imagen.
-
-## Ejecutar el servidor
-
-Siga los [comandos del entorno virtual](../../README.es.md#inicio-rápido) y abra la [interfaz en 8005](http://127.0.0.1:8005/). Los originales `python server.py` y el archivo por lotes usan 8000; esta guía usa Uvicorn `--port 8005`. Ejecute un solo worker, ya que cada uno tiene conexiones y estado independientes. Detenga el servidor con Ctrl+C.
-
-## 1. Conexión y selección del destino
-
-![Panel](../images/01-dashboard.jpg)
-
-Compruebe conexión y versión. Abra **대상 프로세스 선택** (seleccionar destino), busque nombre/PID o introdúzcalo. Se verifica actividad e identidad de creación. Al no existir un IOCTL de enumeración completa, se consultan PID de cuatro en cuatro. El rango predeterminado es 4–65,536; amplíelo a 262,144 o 1,048,576 o introduzca otro PID manualmente. La lista no garantiza cobertura completa.
-
-Cambiar o volver a seleccionar el destino puede limpiar entradas y sesiones, pero no restaura cambios aplicados. Restaure los cambios necesarios antes de cambiar.
-
-## 2. Buscar y reducir candidatos
-
-![Escaneo](../images/03-memory-scan.jpg)
-
-En **메모리 스캔** elija tipo, condición y valor y ejecute **New**. Por ejemplo, busque el entero de 32 bits 100 en su propio programa de prueba, cámbielo a 101 desde ese programa y ejecute **Next** con 101 o Increased. Unknown inicia búsquedas numéricas/de estructuras sin valor conocido. **Rescan** actualiza la referencia sin reducir candidatos legibles. La actualización Live no cambia la referencia de Next.
-
-Se admiten números con/sin signo, UTF-8/UTF-16LE, AOB como `DE AD ?? A? ?F` y estructuras con campos numéricos. Direcciones y enteros de 64 bits permanecen como cadenas. Alineación 1 incluye valores no alineados; inicio inclusivo y fin exclusivo. Guarde candidatos o envíelos a Hex, desensamblado o estructuras.
-
-El espacio nuevo guarda candidatos en SQLite y no se detiene en el límite antiguo de 50,000. Presupuesto inicial 256MiB, máximo 4GiB; informa búsquedas parciales y errores. Las páginas admiten 50/100/200/500 filas y se guardan hasta 256 direcciones por sesión. Distinga filtro/orden de página actual frente a todos los candidatos; CSV completo se genera como trabajo de exportación. Las API antiguas mantienen su límite separado de 50,000.
-
-## 3. Edición, Watch, estructuras y asignación
-
-![Editor](../images/02-memory-editor.jpg)
-
-En **메모리 편집**, abra una dirección hexadecimal y edite bytes/números con doble clic o por tipo. Ctrl+→ despliega punteros; Ctrl+← los contrae; la rueda recorre direcciones adyacentes. Restaurar ediciones verifica los bytes actuales. **Watch / 값 고정** y Freeze escriben repetidamente y se detienen ante fallo, salida o reutilización de PID.
-
-**구조체 / 클래스** define campos, matrices, estructuras anidadas y punteros. Los conjuntos de cambios siguen vista previa → comprobar original → aplicar → verificar lectura. **프로젝트 작업 공간** guarda vistas y localizadores para reconectar; **변경 기록 / 묶음** gestiona registros de recuperación; **변화 타임라인** compara muestras, sin registrar todos los cambios intermedios.
-
-**메모리 할당** recibe cadenas ANSI/UTF-16LE con NULL final o bytes de archivo, calcula el tamaño y asigna memoria de lectura/escritura. Escribe y verifica mediante el kernel; máximo 1MiB incluido NULL. Libera usando BaseAddress registrado. Limpiar historial no libera la memoria. **메모리 관리** cambia protección, copia y rellena. Wide View es Beta. Escribir, liberar, congelar y restaurar cambian realmente la memoria del destino.
-
-## 4. Volcados, módulos y funciones
-
-**메모리 / 이미지 덤프** admite range/image/images. El rango máximo es 16GiB; salida en `dumps/` o `KERNEL_STUDIO_DUMP_DIR`. Cancelar espera la petición actual y conserva `.part`; continuar en la misma sesión comprueba identidad, longitud y hash. Los registros de descargas terminadas sobreviven al reinicio, los trabajos activos no. La política Zero documenta los tramos ilegibles rellenados con cero: esos ceros no son datos originales.
-
-Los volcados de imagen usan disposición RVA: desplazamiento de archivo = VA − base. No reconstruyen un PE ejecutable de disco. **모듈 / PE / 주소** muestra módulos, encabezados, secciones, importaciones/IAT, exportaciones y pertenencia de direcciones. Fuera de MEM_IMAGE comprueba encabezados válidos al inicio de regiones comprometidas, no todos sus bytes.
-
-En **DLL / 이미지 함수**, seleccione una imagen y analice funciones. Confirme la DLL en la lista de módulos aunque la solicitud de carga indique éxito. PDB es opcional; sin símbolos pueden faltar funciones o inferirse tipos. Las llamadas requieren controlador 2.2+, destino x64, un argumento entero/puntero de 64 bits y salida de 32 bits. Consulte el CallId existente tras un tiempo de espera; no repita automáticamente la creación. Liberar seguimiento no termina el hilo ni descarga la DLL.
-
-## 5. Código, hilos y puntos de interrupción
-
-![Desensamblado](../images/04-disassembly.jpg)
-
-En **디스어셈블리**, indique dirección, tamaño y x86/x64. Haga doble clic en ASM/Graph, valide una línea Intel y déjela pendiente. Se rechazan codificaciones más largas; las cortas se rellenan con NOP. Solo **편집 적용** aplica los bytes. Undo/Redo de dirección navega; Undo/Redo de parche escribe. La recuperación exige bytes actuales esperados. El pseudocódigo no garantiza código original ni C compilable.
-
-Los parches no son atómicos frente a hilos ejecutándose y no sincronizan la caché de instrucciones. Aplíquelos en una prueba controlada mientras ese código no se ejecuta. **스레드 / 레지스터** comprueba PID/TID/creación, suspende temporalmente, edita los campos pedidos, verifica y restaura el contador de suspensión. La ABI incluye 18 campos generales, sin XMM/YMM. Los puntos de interrupción admiten ejecución/escritura/lectura-escritura y longitudes 1/2/4/8; conservan recuperación si falla la eliminación.
-
-## API y límites
-
-`/docs` ofrece Swagger, `/redoc` ReDoc y `/openapi.json` el esquema. Sustituya PID/direcciones del ejemplo por datos reales de su destino autorizado.
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8005/api/status
-Invoke-RestMethod http://127.0.0.1:8005/api/studio/capabilities
-$requestBody = '{"operation":"read","args":{"pid":1234,"address":"0x140000000","size":64}}'
-Invoke-RestMethod http://127.0.0.1:8005/api/studio/execute -Method Post -ContentType application/json -Body $requestBody
-```
-
-Verifique `success`, `result_status` y `driver_response`; HTTP 200 no basta. Consulte el [inventario API/ABI](../reference/API_ABI.md). Use job ID para consultar volcados/búsquedas y espere que termine la cancelación.
-
-Límites: transferencia normal 1MiB, lectura del kernel por partes de 4KiB, tablas normales 5,000, mapas internos 50,000, nodos del kernel 65,536, hilos 64 y handles 128. Se rechazan mapas truncados cuando la operación exige cobertura completa. Instantáneas (16), mapas (8) y parches (64) pertenecen a la sesión. Proyectos, diarios, PDB, DLL y volcados se guardan en disco; marcadores en el navegador. Las lecturas secuenciales de procesos activos no son instantáneas atómicas.
-
-## Diagnóstico y pruebas
-
-| Síntoma | Comprobar |
-|---|---|
-| No abre el dispositivo | Administrador, servicio, firma/carga y `\\.\MyDriver` |
-| Dirección inválida | Identidad, rango de usuario, Guard/NoAccess, salida o reutilización PID |
-| Falta un proceso | Ampliar rango o introducir PID; la enumeración es incompleta |
-| No conecta a 8005 | Puerto/errores Uvicorn; los lanzadores originales usan 8000 |
-| Interfaz antigua | Actualizar, caché y directorio real del servidor activo |
-| PDB falla | DIA SDK, compilación/ruta y GUID/Age |
-| Búsqueda parcial/cuota | Reducir rango, New; revisar presupuesto, límites y errores |
-
-La ejecución completa necesita el auxiliar DIA, `samples/PanelHello.dll` y su PDB. Compile el [ejemplo](../../samples/README.md) para evitar la dependencia de una ruta externa de las pruebas originales. CI enlaza VS 2022 a la ruta Professional original y compila auxiliar y ejemplo sin editar el código original.
+## 2. Iniciar Kernel Studio
 
 ```powershell
 cd kernel_control_panel
-powershell -NoProfile -ExecutionPolicy Bypass -File ../samples/build_fixture.ps1
-python -m unittest discover -p 'test*.py' -v
-python test_driver_readonly.py
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python kernel_studio.py
 ```
 
-El comando `unittest` ejecuta regresiones simuladas. `test_driver_readonly.py` realiza siete consultas de solo lectura sobre el propio proceso de diagnóstico mediante el controlador cargado. `test_driver_all_ioctl.py` usa el mismo diagnóstico, no prueba todas las modificaciones reales. Consulte el [alcance de validación](../VALIDATION.md). Use datos sintéticos en incidencias públicas, sin volcados, PDB privados ni contenido real de memoria.
+Abra [http://127.0.0.1:8005/](http://127.0.0.1:8005/). `kernel_studio.py` y `server.py` usan **8005** por defecto. `python kernel_studio.py --port 8006` selecciona otro puerto. El servidor solo escucha en loopback; use un worker, ya que la conexión y el estado pertenecen a ese proceso. Detenga el servidor fuente con Ctrl+C.
+
+Para empaquetar, instale PyInstaller en el entorno de compilación y ejecute `tools\build_release.cmd` desde este directorio. La salida va a `dist/3.2.2/KernelStudio` o a un subdirectorio nuevo con fecha/hora si ya existe. Cierre el panel anterior antes de ejecutar el nuevo `KernelStudio.exe`.
+
+> [!NOTE]
+> `/api/build` describe el panel en ejecución. `/api/status` informa del controlador conectado. Sustituir archivos no actualiza procesos del panel que siguen abiertos ni el controlador ya cargado.
+
+## 3. Seleccionar, leer y reducir
+
+Abra **대상 프로세스 선택** (seleccionar destino), busque por nombre/PID o introduzca un PID. La selección verifica actividad e identidad de creación. El descubrimiento sondea PID en pasos de cuatro, no enumera todo el sistema. El rango inicial es 4–65,536 y puede ampliarse.
+
+En **메모리 스캔** (escaneo), elija tipo, condición y rango. Ejecute **New**, cambie un valor en su propio programa de pruebas y ejecute **Next** con el nuevo valor o una condición como Increased. **Live** actualiza la vista sin sustituir la referencia de Next.
+
+Lleve resultados a **메모리 편집** (editor), Watch, estructuras o desensamblado. Escribir, congelar, asignar, liberar, cambiar protección y operar hilos cambia el destino real. Revise la vista previa, la lectura de verificación y el estado de recuperación.
+
+> [!TIP]
+> Un marcador recuerda una dirección, no la vida de un proceso. Confirme el destino antes de convertir la dirección de ayer en la evidencia de hoy.
+
+## 4. Interpretar ManualV4
+
+Seleccione un destino en **ManualV4**, introduzca una ruta absoluta como `C:\DLLs\Example.dll` y pulse **커널 매핑 요청**. El panel valida la identidad antes de enviar la solicitud. Actualizar la página o los trabajos no vuelve a solicitar un mapeo.
+
+| Resultado | Interpretación |
+|---|---|
+| `state: mapped` con éxito del kernel validado | Mapeo completo según el contrato actual |
+| `failcode` positivo | Rama concreta del fallo en `manual_map_protocol.h` |
+| `failmessage` | Detalles API/validación, valores y NTSTATUS observados en esa rama |
+| Respuesta ausente / inválida | Indeterminado; diagnóstico `null`, sin reintento automático |
+
+El paquete v3 mide **2104 bytes**. `failcode` está en **1076** y `failmessage[1024]` en **1080**. La entrada se pone a cero; el éxito devuelve código 0 y mensaje vacío. El primer diagnóstico persiste aunque la limpieza cambie el estado final. El mensaje es ASCII/ANSI, termina en NUL y tiene cola de ceros; el exceso se marca `[truncated]`.
+
+Para **119**, revise sección/RVA, dirección/tamaño/protección solicitados y estado de `ZwProtectVirtualMemory`. Los campos previos incluyen:
+
+- `pre_page`: estado, tipo, protecciones y cobertura de la primera región sobre el rango redondeado.
+- `pre_dynamic`: flags de código dinámico y bits decodificados.
+- `pre_protection`: nivel, tipo, audit y signer de protección.
+
+> [!IMPORTANT]
+> Las nuevas consultas de política/páginas son de solo lectura: no alteran argumentos ni políticas. `UNAVAILABLE` significa que no se pudo validar el resultado. La primera región puede no cubrir toda la solicitud, y la observación no es atómica.
+
+> [!WARNING]
+> HTTP 200, consultar un trabajo o transportar el IOCTL no confirma el mapeo. Revise estado validado, NTSTATUS y diagnóstico. `ACCESS_DENIED` es el estado recibido, no una causa interna demostrada. Los campos de salida de una API fallida pueden conservar sus valores iniciales.
+
+Detalles API/ABI: [referencia](../reference/API_ABI.md). Funciones actuales en coreano: [guía del panel](../../kernel_control_panel/README_ko.md).
+
+## 5. Datos, símbolos y límites
+
+La aplicación empaquetada guarda assets, symbols, workspaces y dumps bajo `data/` junto al ejecutable. `KERNEL_STUDIO_DATA_DIR` cambia esa raíz. La ejecución fuente conserva sus ubicaciones; los datos anteriores no se copian automáticamente al nuevo paquete.
+
+El análisis PDB utiliza `native/pdb_symbols.exe` y Microsoft DIA x64. Compile el auxiliar con `native/build_pdb_symbols.cmd`; sus rutas iniciales son de VS 2022 Professional. Ajuste las rutas de compilación para otra instalación y use `KERNEL_STUDIO_DIA_DLL` para otra ubicación de DIA. GUID/Age del PDB deben coincidir con la imagen.
+
+Las transferencias normales se limitan a 1MiB, con lecturas del controlador de hasta 4KiB. Los volcados de rangos pueden alcanzar 16GiB y se escriben en disco. Los huecos con ceros quedan en el manifiesto y no son bytes originales. Las imágenes conservan RVA, no reconstruyen PE en disco. Cancelar espera a la petición actual; reanudar verifica identidad e integridad parcial en la misma sesión del servidor.
+
+## 6. Pruebas y resolución de problemas
+
+Desde la raíz, genere el fixture sintético y ejecute las pruebas:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File samples/build_fixture.ps1
+cd kernel_control_panel
+python -m unittest discover -p 'test*.py' -v
+node test_manual_v4_ui.js
+python native/manual_map/run_selftest.py
+```
+
+El discovery completo necesita fixture y auxiliar DIA. El harness nativo usa el mapeador actual con DDIs simuladas; no abre un controlador o destino real. `test_driver_readonly.py` permite siete diagnósticos de solo lectura contra un controlador cargado; `test_driver_all_ioctl.py` tiene el mismo alcance, no una suite real completa. Véanse [fixture](../../samples/README.md) y [validación](../VALIDATION.md).
+
+| Síntoma | Comprobar |
+|---|---|
+| No conecta al dispositivo | Servicio cargado, firma aceptada, administrador y `\\.\MyDriver` |
+| Panel antiguo | Ejecutable/directorio fuente activo, `/api/build`, luego recargar navegador |
+| Proceso ausente | Ampliar rango o introducir PID |
+| Paquete ManualV4 incompatible | Controlador/panel actualizados, ABI v3 / 2104 bytes |
+| Mapeo denegado | NTSTATUS, failcode, failmessage y observaciones previas válidas |
+| `pre_*: UNAVAILABLE` | Estado, longitud y validación; no asumir política cero |
+| PDB no disponible | Auxiliar, DIA, GUID/Age y ruta del runtime |
+
+Use reproducciones sintéticas en incidencias públicas, sin volcados privados ni DLL/PDB de usuarios. La licencia se explica en [LICENSE_STATUS.md](../../LICENSE_STATUS.md).

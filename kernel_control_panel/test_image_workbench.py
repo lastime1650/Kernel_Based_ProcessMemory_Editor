@@ -11,7 +11,8 @@ import driver_bridge as D
 from image_workbench import Workbench,Symbols,number
 
 FIXTURE=Path(__file__).parent.parent/'samples/PanelHello.dll'
-if not FIXTURE.is_file():FIXTURE=Path(r'C:\Users\Administrator\Documents\Codex\2026-10-03\c-users-administrator-source-repos-samplekernel1\work\dll-workbench\PanelHello.dll')
+if not FIXTURE.is_file():
+    raise FileNotFoundError('PanelHello.dll test fixture is missing. Run samples/build_fixture.ps1 from the repository root first.')
 
 def mapped_image():
     raw=FIXTURE.read_bytes();pe=struct.unpack_from('<I',raw,60)[0];opt=pe+24
@@ -111,7 +112,10 @@ class WorkbenchTests(unittest.TestCase):
     def test_detail_obeys_known_function_size_and_does_not_label_guessed_signature_as_pdb(self):
         result=self.analysis();row=self.hello(result);row['size']=4;row['signature']='guessed signature';row['parameter_source']='unknown'
         detail=self.w.detail(result['analysis_id'],number(row['address']),88)
-        self.assertEqual(self.studio.reads[-1],(88,number(row['address']),4))
+        # Metadata reads may follow the code read. The chosen code extent must
+        # still be exactly four bytes, independently of bounded image metadata.
+        code_reads=[r for r in self.studio.reads if r[1]==number(row['address'])]
+        self.assertEqual(code_reads,[(88,number(row['address']),4)])
         self.assertEqual(detail['read_bytes'],4);self.assertTrue(detail['graph']['range_known'])
         self.assertNotIn('pdb_signature',detail['pseudocode'])
     def test_detail_rejects_pid_reuse_during_code_read(self):

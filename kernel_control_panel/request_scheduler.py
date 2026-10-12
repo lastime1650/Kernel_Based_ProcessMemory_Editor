@@ -78,7 +78,9 @@ class Scheduler:
             if 'error' in entry: raise entry['error']
             return copy.deepcopy(entry['value'])
         driver.read_process_memory_snapshot=read
-        for name in ('write_process_memory','copy_process_memory','free_virtual_memory','protect_virtual_memory','alloc_virtual_memory'):
+        for name in ('write_process_memory','copy_process_memory','free_virtual_memory','protect_virtual_memory','alloc_virtual_memory','manual_map_dll'):
+            if not hasattr(driver, name):
+                continue
             original_mutation=getattr(driver,name)
             def mutation(*args,_method=original_mutation,_name=name,**kwargs):
                 # Releasing the caller's copied response does not change target bytes.

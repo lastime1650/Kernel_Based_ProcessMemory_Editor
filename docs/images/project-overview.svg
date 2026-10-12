@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="600" viewBox="0 0 1280 600" role="img" aria-labelledby="title desc">
+  <title id="title">Kernel Studio project overview</title>
+  <desc id="desc">Windows x64 local workspace connects through 43 shared IOCTL contracts to SampleKernel1. Driver 2.6.0.1, panel 3.2.2, and ManualV4 version 3 diagnostics.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1625"/><stop offset="1" stop-color="#102d35"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#5eead4"/><stop offset="1" stop-color="#38bdf8"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0 L0 0 0 32" fill="none" stroke="#d1fae5" stroke-opacity=".045"/></pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="#5eead4" stroke-width="1.5"/></marker>
+  </defs>
+  <rect width="1280" height="600" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="600" rx="24" fill="url(#grid)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="56" y="44" width="260" height="32" rx="16" fill="#134e4a"/>
+    <text x="76" y="66" fill="#99f6e4" font-size="16" font-weight="700" letter-spacing="2">WINDOWS x64 / LOCAL</text>
+    <text x="54" y="156" fill="#f0fdfa" font-size="68" font-weight="800" letter-spacing="-2">KERNEL STUDIO</text>
+    <text x="58" y="197" fill="#a7c6d5" font-size="26">Explore memory. Understand the result.</text>
+    <text x="1224" y="64" text-anchor="end" fill="#9cc5ce" font-size="17">DRIVER 2.6.0.1 / PANEL 3.2.2</text>
+    <g transform="translate(56 248)">
+      <rect width="342" height="150" rx="16" fill="#122b3d" stroke="#38bdf8" stroke-opacity=".6"/>
+      <rect x="22" y="22" width="34" height="34" rx="9" fill="#0c4a6e"/>
+      <text x="39" y="47" text-anchor="middle" fill="#7dd3fc" font-size="22" font-weight="700">1</text>
+      <text x="74" y="46" fill="#e0f2fe" font-size="25" font-weight="700">LOCAL WORKSPACE</text>
+      <text x="24" y="88" fill="#a7c6d5" font-size="20">Scan / Edit / PE / PDB / Threads</text>
+      <text x="24" y="120" fill="#7dd3fc" font-size="19">Browser + FastAPI + Python</text>
+    </g>
+    <path d="M414 323 H448" stroke="#5eead4" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(470 248)">
+      <rect width="326" height="150" rx="16" fill="#142d31" stroke="#5eead4" stroke-opacity=".6"/>
+      <rect x="22" y="22" width="34" height="34" rx="9" fill="#134e4a"/>
+      <text x="39" y="47" text-anchor="middle" fill="#99f6e4" font-size="22" font-weight="700">2</text>
+      <text x="74" y="46" fill="#ccfbf1" font-size="25" font-weight="700">SHARED CONTRACT</text>
+      <text x="24" y="88" fill="#a7c6d5" font-size="20">43 IOCTL request contracts</text>
+      <text x="24" y="120" fill="#5eead4" font-size="19">ctypes / C++ / DeviceIoControl</text>
+    </g>
+    <path d="M812 323 H846" stroke="#5eead4" stroke-width="3" marker-end="url(#arrow)"/>
+    <g transform="translate(868 248)">
+      <rect width="356" height="150" rx="16" fill="#193431" stroke="#a7f3d0" stroke-opacity=".6"/>
+      <rect x="22" y="22" width="34" height="34" rx="9" fill="#14532d"/>
+      <text x="39" y="47" text-anchor="middle" fill="#bbf7d0" font-size="22" font-weight="700">3</text>
+      <text x="74" y="46" fill="#d1fae5" font-size="25" font-weight="700">KERNEL DRIVER</text>
+      <text x="24" y="88" fill="#a7c6d5" font-size="20">Memory / Images / Process / Thread</text>
+      <text x="24" y="120" fill="#a7f3d0" font-size="19">SampleKernel1 + target process</text>
+    </g>
+    <rect x="56" y="436" width="1168" height="112" rx="16" fill="#0b1b2a" stroke="#24464f"/>
+    <rect x="56" y="456" width="5" height="72" rx="2" fill="url(#accent)"/>
+    <text x="82" y="475" fill="#f0fdfa" font-size="23" font-weight="700">MANUAL V4</text>
+    <text x="82" y="510" fill="#a7c6d5" font-size="20">v3 / 2104 bytes</text>
+    <text x="326" y="475" fill="#f0fdfa" font-size="23" font-weight="700">NTSTATUS</text>
+    <text x="326" y="510" fill="#a7c6d5" font-size="20">operation result</text>
+    <text x="594" y="475" fill="#f0fdfa" font-size="23" font-weight="700">failcode</text>
+    <text x="594" y="510" fill="#a7c6d5" font-size="20">failure location</text>
+    <text x="850" y="475" fill="#f0fdfa" font-size="23" font-weight="700">failmessage[1024]</text>
+    <text x="850" y="510" fill="#a7c6d5" font-size="20">observed facts + query snapshots</text>
+    <text x="1224" y="578" text-anchor="end" fill="#71929c" font-size="15">Project architecture illustration / not a UI screenshot</text>
+  </g>
+</svg>

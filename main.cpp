@@ -1,5 +1,7 @@
 #include "helper.hpp"
 #include "remote_call.hpp"
+#include "MANUAL_KERNEL.hpp"
+#include "ob_callbacks.hpp"
 #include "ioctl_helper.hpp"
 
 //
@@ -21,6 +23,8 @@ VOID DriverUnloadRoutine(
     // 1. Drain active requests and deferred DLL cleanup
     //
     helper::lifecycle::Shutdown();
+    // Prevent new control requests, then cancel/join the registration worker and drain callbacks.
+    helper::ob_callbacks::Shutdown();
     helper::remote_call::Shutdown();
     helper::process::ReapDllCleanup(TRUE);
 
@@ -42,10 +46,12 @@ NTSTATUS DriverEntry(
 
     // Record driver load start time for diagnostics telemetry
     helper::diagnostics::RecordDriverStart();
+    helper::ob_callbacks::PrepareDiagnostics();
 
     // Initialize request rundown, user-function call tracking and DLL cleanup
     helper::lifecycle::Initialize();
     helper::remote_call::Initialize();
+    helper::manual_map::Initialize();
     helper::process::InitializeDllCleanup();
 
     // A normal load uses its owning driver object. Keep the dynamic path
@@ -81,5 +87,6 @@ NTSTATUS DriverEntry(
         if (DriverObject == nullptr) IoDeleteDriver(target_driver);
         g_ControlDeviceObject = nullptr;
     }
+    // OB observers start unregistered. The global control IOCTL starts registration explicitly.
     return status;
 }

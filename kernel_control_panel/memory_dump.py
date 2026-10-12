@@ -11,6 +11,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import uuid
 import zipfile
+from atomic_metadata import write_json
+from runtime_paths import data_path
 
 PAGE_BYTES = 4096
 MAX_CHUNK_BYTES = 1024 * 1024
@@ -37,7 +39,7 @@ class DumpManager:
     def __init__(self, studio, root=None):
         self.studio = studio
         self.root = Path(root or os.environ.get('KERNEL_STUDIO_DUMP_DIR') or
-                         Path(__file__).parent / 'dumps').resolve()
+                         data_path('dumps')).resolve()
         self.lock = threading.RLock()
         self.jobs = {}
         self.closed = False
@@ -229,9 +231,7 @@ class DumpManager:
             document = self._public(job)
             document['dump_format'] = 'kernel-memory-dump-v1'
             path = self.root / job['id'] / 'manifest.json'
-            temporary = path.with_suffix('.tmp')
-            temporary.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding='utf-8')
-            temporary.replace(path)
+            write_json(path, document)
 
     def get(self, key):
         with self.lock:
@@ -424,6 +424,7 @@ class DumpManager:
                          'sha256': digest.hexdigest()}
 
     def _work(self, job):
+        outcome, error = 'completed', ''
         try:
             self._cancelled(job)
             with self.lock:
@@ -436,17 +437,20 @@ class DumpManager:
             if job['mode'] == 'images':
                 self._bundle(job)
             self._cancelled(job)
-            with self.lock:
-                job.update(state='completed', error='', finished=stamp())
         except DumpCancelled:
-            with self.lock:
-                job.update(state='cancelled', finished=stamp())
+            outcome = 'cancelled'
         except Exception as exc:
-            with self.lock:
-                job.update(state='failed', error=str(exc), finished=stamp())
+            outcome, error = 'failed', str(exc)
         finally:
-            job['updated'] = stamp()
-            self._manifest(job)
+            # Publish a terminal state only after the terminal metadata write.
+            # A permanent checkpoint failure must never be reported as success.
+            with self.lock:
+                job.update(state=outcome, error=error, finished=stamp(), updated=stamp())
+                try:
+                    self._manifest(job)
+                except OSError as exc:
+                    job.update(state='failed', error='덤프 메타데이터 저장 실패: '+str(exc),
+                               manifest_error=str(exc))
 
     def shutdown(self):
         with self.lock:

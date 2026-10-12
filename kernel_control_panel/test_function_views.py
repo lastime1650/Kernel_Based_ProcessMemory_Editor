@@ -11,7 +11,7 @@ START = 0x140001000
 
 
 def analyze(code, bits=64, name='Example'):
-    return V.analyze(bytes.fromhex(code), START, bits, name)
+    return V.analyze(bytes.fromhex(code), START, bits, name, conservative=True)
 
 
 class FunctionViewTests(unittest.TestCase):

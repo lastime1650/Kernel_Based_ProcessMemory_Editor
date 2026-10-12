@@ -54,18 +54,10 @@ class MEMORY_BASIC_INFORMATION64(ctypes.Structure):
     ]
 
 def _memory_api():
-    api = ctypes.WinDLL("kernel32", use_last_error=True)
-    api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-    api.OpenProcess.restype = wintypes.HANDLE
-    api.CloseHandle.argtypes = [wintypes.HANDLE]
-    api.CloseHandle.restype = wintypes.BOOL
-    api.VirtualQueryEx.argtypes = [wintypes.HANDLE, ctypes.c_void_p,
-        ctypes.POINTER(MEMORY_BASIC_INFORMATION64), ctypes.c_size_t]
-    api.VirtualQueryEx.restype = ctypes.c_size_t
-    api.ReadProcessMemory.argtypes = [wintypes.HANDLE, ctypes.c_void_p,
-        ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
-    api.ReadProcessMemory.restype = wintypes.BOOL
-    return api
+    # Historical numeric helpers remain for compatibility and mock-only tests.
+    # The production session is KernelMemoryScannerSession. Never activate a
+    # user-mode target-handle fallback if it is instantiated incorrectly.
+    raise RuntimeError('유저 모드 프로세스 API는 비활성입니다. 커널 IOCTL 스캐너를 사용하세요')
 
 @contextmanager
 def _process_handle(api, access, pid):

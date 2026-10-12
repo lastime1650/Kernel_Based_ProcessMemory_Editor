@@ -29,8 +29,13 @@ from memory_scanner import dissect_structure, FORMATS
 from kernel_only_bridge import KernelOnlyBridge
 from kernel_scanner import KernelMemoryScannerSession
 from process_catalog import KernelProcessCatalog, DiscoveryError, DEFAULT_MAX_PID, MAX_PID_LIMIT
+from build_info import PANEL_VERSION, release_info
 
-app = FastAPI(title="SampleKernel1 Pro Kernel Studio", version="3.0.0")
+app = FastAPI(title="SampleKernel1 Pro Kernel Studio", version=PANEL_VERSION)
+
+@app.get('/api/build')
+def get_build():
+    return {'success':True, **release_info()}
 
 @app.exception_handler(ValueError)
 @app.exception_handler(struct.error)
@@ -141,6 +146,7 @@ async def background_worker():
 @app.on_event("startup")
 async def startup_event():
     studio.prepare()
+    manual_v4.prepare()
     driver.open()
     app.state.background_task = asyncio.create_task(background_worker())
 
@@ -151,6 +157,7 @@ async def shutdown_event():
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+    manual_v4.shutdown()
     await asyncio.to_thread(studio.shutdown)
     # A cancelled to_thread await does not cancel the native freeze call.
     def wait_for_freeze():
@@ -305,7 +312,8 @@ def get_process_details(pid: int):
         "basic": pinfo,
         "extended": pex,
         "token": token,
-        "identity": {"create_time": str(pex.get('create_time', 0))}
+        "identity": {"create_time": str(pex.get('create_time', 0)),
+                     "process_start_key": str(pinfo.get('process_start_key', 0))}
     }
 
 @app.get("/api/process/{pid}/handles")
@@ -700,6 +708,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 from studio_api import install as install_studio
 studio = install_studio(app, driver)
+from manual_v4 import install as install_manual_v4
+manual_v4 = install_manual_v4(app, studio)
 
 @app.get("/")
 def read_root():
@@ -709,6 +719,6 @@ def read_root():
     return HTMLResponse("<h1>SampleKernel1 Control Panel Backend Running</h1>")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=False)
+    from kernel_studio import main
+    main(app)
 

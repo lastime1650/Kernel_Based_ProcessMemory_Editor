@@ -1,5 +1,16 @@
 # 변경 기록 / Changelog / 修改记录 / Registro de cambios
 
+## 2026-10-12 — Driver 2.6.0.1 / Kernel Studio 3.2.2
+
+- 현재 프로젝트의 커널 드라이버·공유 프로토콜·C++ 클라이언트·패널·테스트·패키징 소스를 동기화했습니다. 빌드 산출물과 개인 실행 기록은 공개 추적에서 제외합니다.
+- ManualV4 요청·응답을 **v3 / 2104 bytes**로 업데이트했습니다. `ULONG failcode`와 `char failmessage[1024]`로 첫 실패 위치 및 ANSI 호환 진단을 보존합니다. UI와 이력은 성공·실패·불명 응답을 구분합니다.
+- 보호 API 직전 페이지의 상태·타입·보호, 대상 동적 코드 정책과 프로세스 보호 상태를 진단에 추가했습니다. 조회 실패는 `UNAVAILABLE`이며 조회 결과가 매핑 보호 인자나 성공 조건을 바꾸지 않습니다.
+- EPROCESS 조회·범위 제한 읽기와 OS별 preset, Ob observer V2 제어·상태, HWBP 수집, PDB 없는 함수 분석 및 공개 기호 경로 등 현재 프로젝트 기능을 포함했습니다.
+- README 시각 구성과 최신 소스·API·ABI·검증 reference를 갱신했습니다. 현재 목록은 **43 IOCTL identifiers / 82 HTTP·WebSocket decorators**입니다.
+- 로컬 검증 기록: **561 Python tests**, **8 ManualV4 mock UI groups**, **2009 native checks / 135 failure locations**, unsigned x64 Release/Debug rebuilds. 원격 CI 결과와 실제 드라이버·대상 실행 검증은 별도입니다.
+
+**English:** Synchronized the current driver, shared protocols, panel, tests and packaging sources. ManualV4 now uses protocol **v3**, a **2104-byte** packet, numbered failure locations and a **1024-byte** diagnostic buffer. Protection failures include read-only pre-call page/policy/protection snapshots. Source references and visual README content now reflect driver **2.6.0.1** and panel **3.2.2**; CI adds mocked DOM suites and the native mapper harness. Local evidence is explicitly distinguished from remote CI and live target execution.
+
 ## 2026-10-06 — All-in-one README expansion
 
 - 한국어: 네 언어 README를 전체 구현 설명서로 확장했습니다. 7개 설계도, 79개 Studio 동작, 기본 UI 정의 76개, 세션 action, 37개 IOCTL, 45개 ABI 구조/337개 필드, 네이티브 보조 구조, 요청 모델과 전체 74개 경로를 본문에 넣었습니다. 누락된 PUT 자산 업로드 경로를 API 목록에 추가했습니다. 원본 소스는 변경하지 않았습니다.
