@@ -1,6 +1,6 @@
 # SampleKernel1 Kernel Studio 사용 안내
 
-로드된 SampleKernel1 드라이버로 프로세스·메모리·검색·모듈·스레드·중단점·DLL 작업을 수행하는 로컬 컨트롤패널입니다. 현재 패널은 3.2.3, 권장 드라이버는 2.6.0.2입니다. 기존 IOCTL 0x800~0x829, 커널 수동 매핑 0x878, APC_NORMALIZE 0x900을 포함한 44개 요청 계약이 있습니다. APC_NORMALIZE는 선택한 프로세스·스레드와 네 주소 인자를 커널 APC 요청으로 전달합니다. ManualV4는 선택한 DLL을 로컬 패널에 업로드한 뒤 로컬 캐시 경로를 커널에 전달합니다. 화면의 드라이버 버전은 실제 로드된 장치의 응답이며, 별도 패널 버전과 다를 수 있습니다. 비활성 호환 기능은 제외하며, 반환 목록 해제는 자동 처리합니다.
+로드된 SampleKernel1 드라이버로 프로세스·메모리·검색·모듈·스레드·중단점·DLL 작업을 수행하는 로컬 컨트롤패널입니다. 현재 패널은 3.2.3, 권장 드라이버는 2.6.0.2입니다. 기존 IOCTL 0x800~0x829, 커널 수동 매핑 0x878, APC_NORMALIZE 0x900을 포함한 44개 요청 계약이 있습니다. APC_NORMALIZE는 선택한 프로세스·스레드와 네 주소 인자를 커널 APC 요청으로 전달합니다. ManualV4는 Windows 기본 파일 선택창에서 얻은 DLL 절대경로를 직접 커널에 전달하며 DLL 바이트를 업로드하거나 assets에 복사하지 않습니다. 화면의 드라이버 버전은 실제 로드된 장치의 응답이며, 별도 패널 버전과 다를 수 있습니다. 비활성 호환 기능은 제외하며, 반환 목록 해제는 자동 처리합니다.
 
 ## 시작
 
@@ -73,7 +73,7 @@ API: `POST /api/studio/dumps`에 `{pid, mode: "range"|"image"|"images", address,
 
 ## ManualV4 커널 매핑
 
-**ManualV4**에서 대상 프로세스를 선택하고 **DLL 파일 선택**으로 파일을 고른 뒤 **커널 매핑 요청**을 누릅니다. **매핑만 수행**을 선택하면 매핑 후 DllMain 호출을 생략합니다. 최대 파일 크기는 64MiB입니다. 패널은 DLL을 로컬 업로드 캐시에 저장하고 해당 경로와 `OnlyMapping` BOOLEAN을 드라이버에 전달합니다. 드라이버 **2.6 이상 / 빌드 20261012 이상**이 필요합니다. 커널이 `0x878`, 패킷 버전 3 요청(2104바이트)으로 DLL을 매핑하며, 작업 목록에 이미지 기준 주소, 진입점, 커널 상태, `failcode`와 `failmessage`를 표시합니다.
+**ManualV4**에서 대상 프로세스를 선택하고 **DLL 파일 선택**을 누르면 Windows 기본 파일 선택창이 열립니다. 선택한 DLL의 절대경로를 `POST /api/manual-v4/map` 요청에 그대로 담아 커널에 전달하며 DLL 바이트를 업로드하거나 `assets`로 복사하지 않습니다. 선택 시 DLL 존재 여부와 크기(1바이트~64MiB)를 확인합니다. 프로세스 시작 키는 커널 요청 직전에 다시 확인합니다. **매핑만 수행**을 선택하면 매핑 후 DllMain 호출을 생략합니다. 드라이버 **2.6 이상 / 빌드 20261012 이상**이 필요합니다. 커널이 `0x878`, 패킷 버전 3 요청(2104바이트)으로 DLL을 매핑하며, 작업 목록에 이미지 기준 주소, 진입점, 커널 상태, `failcode`와 `failmessage`를 표시합니다.
 
 **ManualV4_Viewer**에서는 성공한 매핑 작업을 선택하고 PDB 파일을 고른 뒤 **매핑된 DLL 분석**을 누릅니다. 분석 전에 PID 시작 키와 매핑 시작 주소가 현재 프로세스의 PE 이미지로 확인되는지 검사하며, PDB GUID/Age가 매핑된 이미지의 CodeView 정보와 일치해야 합니다. 함수 주소와 RVA, 이름, 매개변수·시그니처, 식별 근거를 검색·페이지별로 확인하고, 행을 선택해 공통 함수 상세 뷰를 엽니다. 함수 목록 전체는 JSON으로 저장할 수 있습니다.
 
@@ -89,7 +89,7 @@ API: `POST /api/studio/dumps`에 `{pid, mode: "range"|"image"|"images", address,
 
 전송 실패, 잘못된 응답, 기존 저장 기록 등으로 커널 진단을 확인할 수 없으면 API는 `failcode: null` 및 `failmessage: null`, 화면은 `미확인`을 표시합니다. 메시지의 NUL 종결·ASCII 바이트·제로 tail 및 성공/실패 코드와의 일관성을 검증합니다. 버전 1(1076바이트) 및 버전 2(1080바이트) 패킷과 호환되지 않으므로 새 드라이버와 패널을 함께 사용해야 합니다. 응답 버퍼 자체가 없거나 크기가 잘못된 요청과 매핑 함수에 도달하기 전의 드라이버 거절은 패킷의 진단을 반환할 수 없습니다.
 
-요청에는 PID와 선택한 DLL을 사용합니다. 업로드 요청은 `POST /api/manual-v4/upload-map?pid=...&process_start_key=...&filename=...&only_mapping=true|false`로 원시 파일 바이트를 전송하며, 패널은 이를 SHA-256 파일명으로 로컬 업로드 캐시에 저장해 기존 커널 매핑 계약에 전달합니다. 프로세스 식별값은 서버에서 요청 직전에 확인하며 커널 패킷에는 포함되지 않습니다. 화면을 열거나 새로 고침할 때는 작업 상태만 조회하고, 실패하거나 결과가 불확실해도 자동으로 매핑을 다시 요청하지 않습니다.
+Windows 파일 선택창은 `POST /api/manual-v4/select-dll`로 열고 `{path, display_name, size}`를 반환합니다. 취소하면 `cancelled: true`를 반환합니다. 매핑 요청 `POST /api/manual-v4/map`에는 `{pid, process_start_key, path, display_name, only_mapping}` JSON을 보내며 `path`는 선택한 DLL의 원래 절대경로입니다. DLL 바이트는 브라우저에서 전송하거나 `assets`에 저장하지 않습니다. 프로세스 시작 키는 서버에서 커널 요청 직전에 다시 확인하며 커널 패킷에는 포함되지 않습니다. 이전 화면의 `/api/manual-v4/upload-map` 요청은 HTTP 409와 강력 새로고침 안내를 반환합니다. 새로 고침은 작업 상태만 조회하며 실패·불명 결과를 자동 재요청하지 않습니다.
 
 호환 API: `POST /api/manual-v4/map`에 `{pid, process_start_key: "10진수 식별값", path: "DLL 절대 경로", only_mapping: false}`를 전달할 수 있습니다. 작업 조회는 `GET /api/manual-v4/jobs`, `GET /api/manual-v4/jobs/{id}`입니다. 매핑 결과의 `mapped_base`와 `entry_point`는 64비트 정밀도를 유지하는 16진수 문자열입니다. `state`가 `mapped`인지 확인해야 하며, 작업 조회 성공만으로 매핑 성공을 판단하지 않습니다.
 
@@ -138,7 +138,7 @@ PE 형식 해석은 [Microsoft PE 사양](https://learn.microsoft.com/en-us/wind
 
 `tools/build_release.cmd`는 기존 실행 파일과 사용자 데이터를 삭제하지 않도록 `dist/<패널 버전>/KernelStudio`에 새 패키지를 수집합니다. 해당 버전 폴더가 이미 있으면 그 아래 새로운 `build-<시각>` 폴더를 사용합니다. 이번 새 패널은 `dist/3.2.3/KernelStudio/KernelStudio.exe`이며, 기존 패널을 종료한 뒤 새 실행 파일을 사용합니다.
 
-실행 파일에는 Python·FastAPI·NumPy·Capstone·Keystone 및 웹 정적 파일이 포함됩니다. DLL/PDB 업로드·프로젝트·덤프는 실행 파일 옆 `data/assets`, `data/symbols`, `data/workspaces`, `data/dumps`에 저장합니다. `KERNEL_STUDIO_DATA_DIR`로 루트를 바꿀 수 있습니다. 소스로 실행하면 기존 저장 위치를 유지합니다. 기존 데이터 폴더를 릴리즈 기본 데이터에 자동으로 복사하지 않습니다.
+실행 파일에는 Python·FastAPI·NumPy·Capstone·Keystone 및 웹 정적 파일이 포함됩니다. ManualV4에서 선택한 DLL은 원래 경로를 사용하며 복사하지 않습니다. 그 외 DLL/PDB 분석 자료·프로젝트·덤프는 실행 파일 옆 `data/assets`, `data/symbols`, `data/workspaces`, `data/dumps`에 저장합니다. `KERNEL_STUDIO_DATA_DIR`로 루트를 바꿀 수 있습니다. 소스로 실행하면 기존 저장 위치를 유지합니다. 기존 데이터 폴더를 릴리즈 기본 데이터에 자동으로 복사하지 않습니다.
 
 PDB 분석은 포함된 `native/pdb_symbols.exe`와 별도 Microsoft DIA x64 런타임을 사용합니다. 이 개발 PC의 Visual Studio 2022 Professional DIA 경로를 기본으로 사용하며, 다른 설치 경로는 `KERNEL_STUDIO_DIA_DLL`로 지정합니다. DIA 재배포 파일은 이 릴리즈에 포함하지 않습니다. PDB 없이도 내보내기·PE·Capstone과 명령어 기반 Win64 C 의사코드 분석을 사용할 수 있습니다. **Microsoft 공개 심볼** 버튼은 선택한 이미지와 일치하는 공개 PDB를 받아 추가로 보완합니다. 자세한 범위와 사용법은 [DLL_WORKBENCH.md](DLL_WORKBENCH.md)를 참고하세요.
 

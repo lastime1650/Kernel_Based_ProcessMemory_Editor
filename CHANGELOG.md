@@ -5,9 +5,10 @@
 - APC_NORMALIZE를 패널 탐색에 추가했습니다. 페이지 진입 시 선택 프로세스의 스레드를 조회하고, 표 행 선택·새로 고침과 네 개의 64-bit 주소 입력을 제공합니다.
 - 커널 `IOCTL 0x900`과 48-byte 요청 구조체를 연결해 PID, TID, Normalize_Address, Normalize_Context, SystemBuffer 1/2를 전달하고 결과 NTSTATUS를 확인합니다.
 - 신규 APC UI·HTTP·ABI 회귀 검사를 추가했습니다. 로컬 증거는 새 기능 전용 테스트와 x64 커널 컴파일 결과이며, WDK `InfVerif.dll` 누락으로 INF package verification은 생략했습니다.
+- ManualV4 파일 선택을 Windows 기본 선택창으로 통일하고, 선택 DLL의 절대경로를 직접 커널 요청에 전달합니다. DLL 바이트를 업로드하거나 `assets`로 복사하지 않으며, 오래된 `/upload-map` 요청에는 HTTP 409와 강력 새로고침 안내를 반환합니다. 캐시 갱신 토큰을 바꾸고 패널 버전 `3.2.3`은 유지했습니다.
 - 현재 계약 요약은 **44 IOCTL / 83 HTTP·WebSocket decorators / 47 ctypes layouts / 362 fields**입니다.
 
-**English:** Added the APC_NORMALIZE thread picker and request form, connected IOCTL 0x900 with its 48-byte PID/TID/address packet, and added focused HTTP, ABI and browser regressions. ManualV4 now accepts OnlyMapping to skip DllMain while preserving its v3 packet size. ManualV4_Viewer validates process identity, mapped base and PDB GUID/Age before showing function addresses and parameters. The four READMEs now describe all 28 sidebar entries individually. Current counts are **44 IOCTLs / 83 routes / 47 ctypes layouts / 362 fields**. The x64 kernel compiled; INF package verification was skipped because the local WDK lacks `InfVerif.dll`.
+**English:** Added the APC_NORMALIZE thread picker and request form, connected IOCTL 0x900 with its 48-byte PID/TID/address packet, and added focused HTTP, ABI and browser regressions. ManualV4 now accepts OnlyMapping to skip DllMain while preserving its v3 packet size. ManualV4_Viewer validates process identity, mapped base and PDB GUID/Age before showing function addresses and parameters. The four READMEs describe all 28 sidebar entries individually. ManualV4 now sends the selected DLL’s original absolute path directly, with no DLL-byte upload or assets copy; stale upload clients receive HTTP 409 with a refresh instruction. The panel remains at version **3.2.3**. Current counts are **44 IOCTLs / 83 routes / 47 ctypes layouts / 362 fields**. The x64 kernel compiled; INF package verification was skipped because the local WDK lacks `InfVerif.dll`.
 
 ## 2026-10-12 — Driver 2.6.0.1 / Kernel Studio 3.2.2
 

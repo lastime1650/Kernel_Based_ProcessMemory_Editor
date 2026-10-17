@@ -52,7 +52,7 @@ Lleve resultados a **메모리 편집** (editor), Watch, estructuras o desensamb
 
 ## 4. Interpretar ManualV4
 
-Seleccione un destino y un archivo DLL en **ManualV4** y pulse **커널 매핑 요청**. El panel carga localmente archivos de hasta 64 MiB y valida la identidad del proceso antes de enviar la ruta en caché al kernel. Actualizar la página o los trabajos no vuelve a solicitar un mapeo.
+Seleccione un destino y pulse **DLL 파일 선택** en **ManualV4** para abrir el selector nativo de Windows. El panel envía al kernel la ruta absoluta original del DLL; no carga sus bytes ni copia el archivo en `assets`. El selector comprueba que el archivo exista y mida entre 1 byte y 64 MiB. La identidad del proceso se vuelve a comprobar justo antes de la solicitud al kernel. Elija **매핑만 수행** para omitir DllMain. En **ManualV4_Viewer**, seleccione el mapeo correcto y su PDB correspondiente para consultar direcciones y parámetros tras validar la base, la identidad del proceso y GUID/Age del PDB. Actualizar la página o los trabajos no vuelve a solicitar un mapeo.
 
 | Resultado | Interpretación |
 |---|---|

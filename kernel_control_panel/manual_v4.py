@@ -1,11 +1,12 @@
 """ManualV4 web jobs backed solely by the kernel manual-map IOCTL."""
 import asyncio
 import copy
+import ctypes
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 import json
 import math
 import ntpath
+import os
 from pathlib import Path
 import re
 import threading
@@ -16,7 +17,8 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request
 from atomic_metadata import write_json
 from manual_map_protocol import (IDENTITY_NOTE, MAX_IMAGE_BYTES, request as map_request,
-                                 valid_result_addresses, valid_result_failcode, valid_result_diagnostic)
+                                 nt_dll_path, valid_result_addresses, valid_result_failcode,
+                                 valid_result_diagnostic)
 from request_scheduler import scope
 from runtime_paths import data_path
 
@@ -25,12 +27,63 @@ KEY = re.compile(r'^[0-9a-f]{32}$')
 # Stable job-history marker; the current IOCTL packet version is defined in the protocol module.
 BACKEND = 'kernel_manual_map_v1'
 MAX_JOBS = 256
-MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES
 JOB_FIELDS = {'id', 'backend', 'pid', 'process_start_key', 'path', 'nt_path', 'state',
               'display_name', 'only_mapping',
               'created_at', 'started_at', 'finished_at', 'mapped_base', 'entry_point',
               'result_status', 'failcode', 'failmessage', 'output', 'error', 'execution_unknown', 'identity_check', 'note',
               'transport_ok', 'packet_valid', 'error_code', 'bytes_returned'}
+_DLL_PICKER_LOCK = threading.Lock()
+
+
+def _choose_dll_path():
+    """Open the Windows native picker so the local panel receives the real path."""
+    if os.name != 'nt':
+        raise OSError('Windows 파일 선택 창은 Windows 컨트롤 패널에서만 사용할 수 있습니다')
+
+    from ctypes import wintypes
+
+    class OPENFILENAMEW(ctypes.Structure):
+        _fields_ = [
+            ('lStructSize', wintypes.DWORD), ('hwndOwner', wintypes.HWND),
+            ('hInstance', wintypes.HINSTANCE), ('lpstrFilter', wintypes.LPCWSTR),
+            ('lpstrCustomFilter', wintypes.LPWSTR), ('nMaxCustFilter', wintypes.DWORD),
+            ('nFilterIndex', wintypes.DWORD), ('lpstrFile', wintypes.LPWSTR),
+            ('nMaxFile', wintypes.DWORD), ('lpstrFileTitle', wintypes.LPWSTR),
+            ('nMaxFileTitle', wintypes.DWORD), ('lpstrInitialDir', wintypes.LPCWSTR),
+            ('lpstrTitle', wintypes.LPCWSTR), ('Flags', wintypes.DWORD),
+            ('nFileOffset', wintypes.WORD), ('nFileExtension', wintypes.WORD),
+            ('lpstrDefExt', wintypes.LPCWSTR), ('lCustData', wintypes.LPARAM),
+            ('lpfnHook', ctypes.c_void_p), ('lpTemplateName', wintypes.LPCWSTR),
+            ('pvReserved', ctypes.c_void_p), ('dwReserved', wintypes.DWORD),
+            ('FlagsEx', wintypes.DWORD),
+        ]
+
+    with _DLL_PICKER_LOCK:
+        file_buffer = ctypes.create_unicode_buffer(32768)
+        filter_buffer = ctypes.create_unicode_buffer(
+            'DLL files (*.dll)\0*.dll\0\0')
+        title_buffer = ctypes.create_unicode_buffer('ManualV4 DLL 선택')
+        dialog = OPENFILENAMEW()
+        dialog.lStructSize = ctypes.sizeof(dialog)
+        dialog.lpstrFilter = ctypes.cast(filter_buffer, wintypes.LPCWSTR)
+        dialog.nFilterIndex = 1
+        dialog.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
+        dialog.nMaxFile = len(file_buffer)
+        dialog.lpstrTitle = ctypes.cast(title_buffer, wintypes.LPCWSTR)
+        # OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
+        dialog.Flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008
+
+        common_dialog = ctypes.WinDLL('comdlg32', use_last_error=True)
+        open_file = common_dialog.GetOpenFileNameW
+        open_file.argtypes = [ctypes.POINTER(OPENFILENAMEW)]
+        open_file.restype = wintypes.BOOL
+        if open_file(ctypes.byref(dialog)):
+            return file_buffer.value
+        common_dialog.CommDlgExtendedError.restype = wintypes.DWORD
+        error = common_dialog.CommDlgExtendedError()
+        if error:
+            raise OSError(f'Windows 파일 선택 창 오류 (0x{error:08X})')
+        return None
 
 
 def local_request(request):
@@ -53,7 +106,8 @@ class ManualV4:
         self.root = Path(root) if root is not None else data_path('assets') / 'manual_v4_kernel'
         self.root.mkdir(parents=True, exist_ok=True)
         self.upload_root = self.root / 'uploads'
-        self.upload_root.mkdir(parents=True, exist_ok=True)
+        # Reap files left by the previous browser-upload implementation without
+        # creating or using an upload directory for newly selected DLLs.
         self._reap_uploads()
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='manual-v4-kernel')
@@ -144,6 +198,8 @@ class ManualV4:
                 continue
 
     def _reap_uploads(self):
+        if not self.upload_root.is_dir():
+            return
         cutoff = time.time() - 24 * 60 * 60
         for path in self.upload_root.iterdir():
             try:
@@ -202,6 +258,15 @@ class ManualV4:
             raise ValueError('PID, 프로세스 시작 키와 DLL 경로만 전달하세요')
         pid, identity, path = body.get('pid'), body.get('process_start_key'), body.get('path')
         _, normalized = map_request(pid, path)
+        try:
+            source = Path(path)
+            if not source.is_file():
+                raise ValueError('선택한 DLL 파일을 찾을 수 없습니다')
+            image_size = source.stat().st_size
+        except OSError as exc:
+            raise ValueError('선택한 DLL 파일을 열 수 없습니다: ' + str(exc)) from exc
+        if not 0 < image_size <= MAX_IMAGE_BYTES:
+            raise ValueError('DLL 파일은 1바이트 이상 64MiB 이하여야 합니다')
         only_mapping = body.get('only_mapping', False)
         if type(only_mapping) is not bool:
             raise ValueError('OnlyMapping은 true 또는 false여야 합니다')
@@ -337,89 +402,29 @@ def install(app, studio, manager=None):
     manager = manager or ManualV4(studio)
     router = APIRouter(prefix='/api/manual-v4')
 
-    @router.post('/upload-map')
-    async def upload_map(request: Request):
+    @router.post('/select-dll')
+    async def select_dll(request: Request):
         local_request(request)
         try:
-            pid = int(request.query_params.get('pid', ''), 10)
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(400, '대상 PID를 확인하세요') from exc
-        identity = request.query_params.get('process_start_key', '')
-        filename = request.query_params.get('filename', '')
-        only_mapping_text = request.query_params.get('only_mapping', 'false').lower()
-        if only_mapping_text not in ('true', 'false'):
-            raise HTTPException(400, 'OnlyMapping은 true 또는 false여야 합니다')
-        only_mapping = only_mapping_text == 'true'
-        if (not filename or len(filename) > 255 or filename != filename.strip()
-                or '/' in filename or '\\' in filename or any(ord(char) < 0x20 for char in filename)
-                or not filename.lower().endswith('.dll') or filename.endswith((' ', '.'))):
-            raise HTTPException(400, 'DLL 파일을 선택하세요')
-        try:
-            manager._owner(pid, identity)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-
-        content_length = request.headers.get('content-length')
-        if content_length:
-            try:
-                declared_size = int(content_length, 10)
-            except ValueError as exc:
-                raise HTTPException(400, 'DLL 크기 헤더를 확인하세요') from exc
-            if declared_size < 0:
-                raise HTTPException(400, 'DLL 크기 헤더를 확인하세요')
-            if declared_size > MAX_UPLOAD_BYTES:
-                raise HTTPException(413, 'DLL 파일은 64MiB 이하여야 합니다')
-        temporary = manager.upload_root / (uuid.uuid4().hex + '.part')
-        upload_path = None
-        created_target = False
-        accepted = False
-        total = 0
-        digest = hashlib.sha256()
-        try:
-            with temporary.open('xb') as stream:
-                async for chunk in request.stream():
-                    if not chunk:
-                        continue
-                    total += len(chunk)
-                    if total > MAX_UPLOAD_BYTES:
-                        raise HTTPException(413, 'DLL 파일은 64MiB 이하여야 합니다')
-                    digest.update(chunk)
-                    stream.write(chunk)
-            if total == 0:
-                raise HTTPException(400, '빈 DLL 파일은 사용할 수 없습니다')
-
-            upload_path = manager.upload_root / (digest.hexdigest() + '.dll')
-            if upload_path.exists():
-                if upload_path.is_symlink() or not upload_path.is_file():
-                    raise HTTPException(400, '업로드 파일 경로를 확인하세요')
-                existing_digest = hashlib.sha256()
-                with upload_path.open('rb') as existing:
-                    for chunk in iter(lambda: existing.read(1024 * 1024), b''):
-                        existing_digest.update(chunk)
-                if upload_path.stat().st_size != total or existing_digest.hexdigest() != digest.hexdigest():
-                    upload_path.unlink()
-                    temporary.replace(upload_path)
-                    created_target = True
-                else:
-                    temporary.unlink(missing_ok=True)
-            else:
-                temporary.replace(upload_path)
-                created_target = True
-
-            result = await asyncio.to_thread(manager.submit, {
-                'pid': pid, 'process_start_key': identity, 'path': str(upload_path),
-                'display_name': filename, 'only_mapping': only_mapping
-            })
-            accepted = True
-            return result
-        except HTTPException:
-            raise
+            selected = await asyncio.to_thread(_choose_dll_path)
+            if selected is None:
+                return {'success': True, 'cancelled': True}
+            path = Path(selected).resolve(strict=True)
+            if not path.is_file():
+                raise ValueError('DLL 파일을 선택하세요')
+            nt_dll_path(str(path))
+            size = path.stat().st_size
+            if not 0 < size <= MAX_IMAGE_BYTES:
+                raise ValueError('DLL 파일은 1바이트 이상 64MiB 이하여야 합니다')
+            return {'success': True, 'cancelled': False, 'path': str(path),
+                    'display_name': path.name, 'size': size}
         except (OSError, RuntimeError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        finally:
-            temporary.unlink(missing_ok=True)
-            if created_target and not accepted and upload_path is not None:
-                manager.discard_upload(upload_path)
+
+    @router.post('/upload-map')
+    async def reject_obsolete_upload(request: Request):
+        local_request(request)
+        raise HTTPException(409, 'ManualV4 화면이 이전 파일 선택 스크립트를 사용 중입니다. 브라우저에서 Ctrl+F5로 새로고침하세요.')
 
     @router.post('/map')
     async def submit(request: Request):

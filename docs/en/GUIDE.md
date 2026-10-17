@@ -52,7 +52,7 @@ Move a result to **메모리 편집** (memory editor), Watch, structures or disa
 
 ## 4. Read ManualV4 results correctly
 
-Choose a target and a DLL file in **ManualV4**, then submit **커널 매핑 요청**. The panel uploads files up to 64 MiB to its local cache and validates process identity before sending the cached path to the kernel. Refreshing the page or job list does not submit another mapping request.
+Choose a target and click **DLL 파일 선택** in **ManualV4** to open the native Windows picker. The panel passes the selected DLL’s original absolute path directly to the kernel; it does not upload the file bytes or copy the DLL into `assets`. The picker checks that the file exists and is 1 byte to 64 MiB. Process identity is checked again immediately before the kernel request. Select **매핑만 수행** to skip DllMain. In **ManualV4_Viewer**, choose the successful mapping and its matching PDB to inspect function addresses and parameters after validating the mapping base, process identity and PDB GUID/Age. Refreshing the page or job list does not submit another mapping request.
 
 | Result | Interpretation |
 |---|---|

@@ -15,6 +15,7 @@ function harness() {
   let elements = new Map(), html = '', busy = false, timerId = 0;
   let currentPid = 123, startKey = '18446744073709551615', connected = true, jobs = [];
   let fetchHandler = null;
+  let picker = {success: true, cancelled: false, path: 'C:\\fixtures\\Picked.dll', display_name: 'Picked.dll', size: 4096};
   const calls = [], timers = new Map(), busyChanges = [];
   const root = {
     get innerHTML() { return html; },
@@ -38,7 +39,8 @@ function harness() {
       calls.push({path, options});
       if (fetchHandler) return fetchHandler(path, options);
       if (path === '/api/manual-v4/jobs') return response({success: true, jobs});
-      if (path.startsWith('/api/manual-v4/upload-map?')) return response({success: true, id: 'job-1', state: 'queued'});
+      if (path === '/api/manual-v4/select-dll') return response(picker);
+      if (path === '/api/manual-v4/map') return response({success: true, id: 'job-1', state: 'queued'});
       throw Error('Unexpected endpoint: ' + path);
     },
     setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
@@ -60,7 +62,8 @@ function harness() {
     set connected(value) { connected = value; },
     set jobs(value) { jobs = value; },
     set fetch(value) { fetchHandler = value; },
-    maps: () => calls.filter(call => call.path.startsWith('/api/manual-v4/upload-map?')),
+    maps: () => calls.filter(call => call.path === '/api/manual-v4/map'),
+    setPicker(value) { picker = value; },
     async render() { this.view.render(suite); await settle(); },
     async tick() {
       const [id, callback] = timers.entries().next().value;
@@ -75,8 +78,9 @@ async function navigationAndPollingOnlyQuery() {
   await h.render();
   assert.match(h.root.innerHTML, /ManualV4/);
   assert.match(h.root.innerHTML, /failcode 0/);
-  assert.match(h.root.innerHTML, /id="mv4-file" type="file" accept="\.dll/);
-  assert.doesNotMatch(h.root.innerHTML, /mv4-path|절대 경로 입력|mv4-runtime|data-mv4-action|PDB/);
+  assert.match(h.root.innerHTML, /id="mv4-select"[^>]*>DLL 파일 선택/);
+  assert.match(h.root.innerHTML, /assets 폴더로 복사하지 않습니다/);
+  assert.doesNotMatch(h.root.innerHTML, /type="file"|mv4-path|절대 경로 입력|mv4-runtime|data-mv4-action|PDB/);
   assert.equal(h.element('mv4-send').disabled, false);
   assert.equal(h.element('mv4-filename').textContent, '선택된 DLL 없음 · 최대 64MiB');
   await h.tick();
@@ -120,24 +124,28 @@ async function identityTargetConnectionAndBusyGate() {
 async function filePickerValidationAndExactContract() {
   const h = harness();
   await h.render();
-  for (const file of [null, {name: 'Example.exe', size: 10}, {name: 'folder/Example.dll', size: 10},
-    {name: 'large.dll', size: 64 * 1024 * 1024 + 1}, {name: 'empty.dll', size: 0}]) {
-    h.element('mv4-file').files = file ? [file] : [];
-    h.element('mv4-file').onchange();
-    await h.element('mv4-send').onclick();
-    assert.equal(h.maps().length, 0, 'Invalid file: ' + (file?.name || 'none'));
-    assert.equal(h.element('mv4-status').error, true);
-  }
-  const file = {name: 'Pícked & Example.dll', size: 4096};
-  h.element('mv4-file').files = [file];
-  h.element('mv4-file').onchange();
-  assert.match(h.element('mv4-filename').textContent, /Pícked & Example\.dll/);
+  h.setPicker({success: true, cancelled: true});
+  await h.element('mv4-select').onclick();
+  assert.equal(h.maps().length, 0);
+  assert.match(h.element('mv4-status').textContent, /취소/);
+  await h.element('mv4-send').onclick();
+  assert.equal(h.maps().length, 0);
+  assert.equal(h.element('mv4-status').error, true);
+
+  const path = 'C:\\fixtures\\Pícked & Example.dll';
+  h.setPicker({success: true, cancelled: false, path, display_name: 'Pícked & Example.dll', size: 4096});
+  await h.element('mv4-select').onclick();
+  assert.match(h.element('mv4-filename').textContent, /C:\\fixtures\\Pícked & Example\.dll/);
+  h.element('mv4-only-mapping').checked = true;
   await h.element('mv4-send').onclick();
   const call = h.maps().at(-1);
-  assert.equal(call.path, '/api/manual-v4/upload-map?pid=123&process_start_key=18446744073709551615&filename=P%C3%ADcked%20%26%20Example.dll');
+  assert.equal(call.path, '/api/manual-v4/map');
   assert.equal(call.options.method, 'POST');
-  assert.equal(call.options.headers['Content-Type'], 'application/octet-stream');
-  assert.equal(call.options.body, file);
+  assert.equal(call.options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(call.options.body), {
+    pid: 123, process_start_key: '18446744073709551615', path,
+    display_name: 'Pícked & Example.dll', only_mapping: true
+  });
   assert.equal(h.busy, false);
   assert.equal(h.timers.size, 1);
   h.view.dispose();
@@ -145,16 +153,15 @@ async function filePickerValidationAndExactContract() {
 
 async function doubleClickAndDisposeDuringMutation() {
   const h = harness(), held = deferred();
-  h.fetch = (path) => path.includes('/upload-map?') ? held.promise : response({success: true, jobs: []});
   await h.render();
-  h.element('mv4-file').files = [{name: 'Example.dll', size: 10}];
-  h.element('mv4-file').onchange();
+  await h.element('mv4-select').onclick();
+  h.fetch = (path) => path === '/api/manual-v4/map' ? held.promise : response({success: true, jobs: []});
   const first = h.element('mv4-send').onclick();
   const second = h.element('mv4-send').onclick();
   await settle();
   assert.equal(h.maps().length, 1);
   assert.equal(h.busy, true);
-  assert.equal(h.element('mv4-file').disabled, true);
+  assert.equal(h.element('mv4-select').disabled, true);
   h.view.dispose();
   const html = h.root.innerHTML;
   held.resolve(response({success: true, state: 'queued'}));
@@ -210,10 +217,9 @@ async function staleQueriesCannotOverwriteCurrentView() {
 
 async function failuresNeverRetryMapping() {
   const h = harness();
-  h.fetch = path => path.includes('/upload-map?') ? response({success: false, detail: '커널 요청 실패'}, false) : response({success: true, jobs: []});
   await h.render();
-  h.element('mv4-file').files = [{name: 'Example.dll', size: 10}];
-  h.element('mv4-file').onchange();
+  await h.element('mv4-select').onclick();
+  h.fetch = path => path === '/api/manual-v4/map' ? response({success: false, detail: '커널 요청 실패'}, false) : response({success: true, jobs: []});
   await h.element('mv4-send').onclick();
   assert.equal(h.maps().length, 1);
   assert.equal(h.element('mv4-status').textContent, '커널 요청 실패');

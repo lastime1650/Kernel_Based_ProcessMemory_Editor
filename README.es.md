@@ -51,7 +51,7 @@ La lista sigue el orden de la barra lateral. Las etiquetas coreanas entre parén
 | **스냅샷 / 패치 / 분석 (Snapshots / parches / análisis)** | Compare o restaure snapshots, previsualice/aplique/deshaga parches y analice punteros o estructuras. |
 | **디스어셈블리 (Desensamblado)** | Muestre instrucciones x86/x64 de memoria e inspeccione el flujo de control. |
 | **DLL / 이미지 함수 (DLL / funciones de imagen)** | Relacione exports y símbolos PDB con direcciones y detalles de funciones. |
-| **ManualV4** | Solicite el mapeo DLL en kernel, omita DllMain si se elige y consulte el resultado. |
+| **ManualV4** | Elija un DLL con el selector nativo de Windows; envíe su ruta absoluta al kernel y, si quiere, omita DllMain. |
 | **ManualV4_Viewer** | Valide la base de un mapeo correcto y examine direcciones y parámetros PDB. |
 | **ObRegisterCallback Panel** | Consulte, registre y elimine el Object Callback global del controlador. |
 | **작업 큐 / 시나리오 (Cola / escenarios)** | Encole escenarios JSON y solicitudes agrupadas y consulte su progreso. |

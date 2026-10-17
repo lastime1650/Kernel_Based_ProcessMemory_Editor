@@ -51,7 +51,7 @@ The list follows the panel sidebar. Korean labels in parentheses match the appli
 | **스냅샷 / 패치 / 분석 (Snapshots / Patches / Analysis)** | Compare and restore snapshots, preview/apply/undo patches, and inspect pointers or structures. |
 | **디스어셈블리 (Disassembly)** | Display x86/x64 instructions from memory and inspect control flow. |
 | **DLL / 이미지 함수 (DLL / Image Functions)** | Connect image exports and PDB symbols to function addresses and details. |
-| **ManualV4** | Request kernel DLL mapping, optionally skip DllMain, and inspect the kernel result. |
+| **ManualV4** | Choose a DLL in the native Windows picker; send its absolute path to the kernel and optionally skip DllMain. |
 | **ManualV4_Viewer** | Validate a successful mapping base, then inspect PDB function addresses and parameters. |
 | **ObRegisterCallback Panel** | Inspect, register and unregister the driver-wide Object Callback. |
 | **작업 큐 / 시나리오 (Job Queue / Scenarios)** | Queue JSON scenarios and grouped requests, then review their progress. |

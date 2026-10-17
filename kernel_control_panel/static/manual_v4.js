@@ -10,7 +10,7 @@
     failed: '실패', indeterminate: '결과 확인 불가'
   };
   let context = null, generation = 0, poll = 0, timer = null;
-  let submitting = false, selectedFile = null, jobs = [];
+  let submitting = false, choosing = false, selectedPath = '', selectedName = '', selectedSize = 0, jobs = [];
   const q = id => context?.root.querySelector('#' + id);
 
   function stopTimer() {
@@ -21,7 +21,9 @@
   function dispose() {
     generation++;
     stopTimer();
-    selectedFile = null;
+    selectedPath = '';
+    selectedName = '';
+    selectedSize = 0;
     context = null;
   }
 
@@ -54,9 +56,10 @@
 
   function controls() {
     if (!context) return;
-    q('mv4-file').disabled = submitting;
-    q('mv4-only-mapping').disabled = submitting;
-    q('mv4-send').disabled = submitting || context.isBusy?.() === true || !ready();
+    const blocked = submitting || choosing || context.isBusy?.() === true;
+    q('mv4-select').disabled = blocked;
+    q('mv4-only-mapping').disabled = blocked;
+    q('mv4-send').disabled = blocked || !ready();
   }
 
   function status(value, error = false) {
@@ -101,36 +104,58 @@
     }
   }
 
-  function validFile(file) {
-    return file && typeof file.name === 'string' && file.name.length > 0 &&
-      file.name.length <= 255 && /\.dll$/i.test(file.name) &&
-      !/[\\/\x00-\x1f]/.test(file.name) && file.size > 0 && file.size <= (64 * 1024 * 1024);
+  async function chooseFile() {
+    if (!context || submitting || choosing || context.isBusy?.() === true) return;
+    const token = generation;
+    choosing = true;
+    status('Windows 파일 선택 창을 여는 중…');
+    try {
+      const result = await api('/select-dll', {method: 'POST'});
+      if (!context || token !== generation) return;
+      if (result.cancelled) {
+        status(selectedPath ? '기존에 선택한 DLL 경로를 유지합니다.' : 'DLL 파일 선택을 취소했습니다.');
+        return;
+      }
+      if (typeof result.path !== 'string' || !result.path ||
+          typeof result.display_name !== 'string' || !Number.isInteger(result.size)) {
+        throw Error('선택한 DLL 경로 응답을 확인하세요');
+      }
+      selectedPath = result.path;
+      selectedName = result.display_name;
+      selectedSize = result.size;
+      q('mv4-filename').textContent = `${selectedPath} · ${selectedSize.toLocaleString()} bytes`;
+      status('선택한 DLL의 절대 경로를 사용합니다. 매핑 요청을 실행할 수 있습니다.');
+    } catch (error) {
+      if (context && token === generation) status(error.message, true);
+    } finally {
+      choosing = false;
+      if (context) controls();
+    }
   }
 
   async function submit() {
     if (submitting || context?.isBusy?.() === true || !ready()) return;
-    const file = selectedFile;
-    if (!file) return status('매핑할 DLL 파일을 선택하세요.', true);
-    if (!validFile(file)) return status('64MiB 이하의 DLL 파일을 선택하세요.', true);
+    if (!selectedPath) return status('매핑할 DLL 파일을 선택하세요.', true);
     const onlyMapping = q('mv4-only-mapping').checked;
     const owner = context, token = generation;
     submitting = true;
     owner.setBusy(true);
-    status('DLL 업로드 및 커널 매핑 요청 중…');
+    status('선택한 DLL 절대 경로로 커널 매핑 요청 중…');
     try {
-      const query = `pid=${owner.pid}&process_start_key=${encodeURIComponent(identity())}&filename=${encodeURIComponent(file.name)}&only_mapping=${onlyMapping}`;
-      const job = await api('/upload-map?' + query, {
-        method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file
+      const job = await api('/map', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pid: owner.pid, process_start_key: identity(), path: selectedPath,
+          display_name: selectedName, only_mapping: onlyMapping})
       });
       if (!context || token !== generation) return;
-      status(`요청 접수 · ${file.name} · ${labels[job.state] || job.state}`);
+      status(`요청 접수 · ${selectedName} · ${labels[job.state] || job.state}`);
       await refresh();
     } catch (error) {
       if (context && token === generation) status(error.message, true);
     } finally {
       submitting = false;
       owner.setBusy(false);
-      if (context && token === generation) controls();
+      if (context) controls();
     }
   }
 
@@ -140,8 +165,8 @@
     context.root.innerHTML = `
       <section class="card">
         <h2>ManualV4</h2>
-        <p>선택한 DLL 파일을 로컬 패널에 전달한 뒤 선택 프로세스에 커널로 매핑합니다. 대상 PID ${esc(context.pid || '미선택')}</p>
-        <div class="fields"><label class="wide">DLL 파일 선택<input id="mv4-file" type="file" accept=".dll,application/x-msdownload"></label></div>
+        <p>Windows 파일 선택 창에서 고른 DLL의 절대 경로를 그대로 사용해 선택 프로세스에 커널로 매핑합니다. DLL 파일을 패널의 assets 폴더로 복사하지 않습니다. 대상 PID ${esc(context.pid || '미선택')}</p>
+        <div class="actions"><button id="mv4-select" class="secondary">DLL 파일 선택</button></div>
         <p id="mv4-filename" class="subtle" aria-live="polite">선택된 DLL 없음 · 최대 64MiB</p>
         <div class="fields"><label><input id="mv4-only-mapping" type="checkbox"> 매핑만 수행 (DLL 진입 함수 호출 안 함)</label></div>
         <div class="actions"><button id="mv4-send">커널 매핑 요청</button></div>
@@ -149,16 +174,7 @@
         <p>failcode 0은 성공, 양수는 커널 실패 위치입니다. 상세 오류에는 실패한 호출과 당시 값이 표시됩니다. 새로 고침은 작업 상태를 조회합니다.</p>
       </section>
       <section><h2>ManualV4 작업</h2><div id="mv4-jobs"></div></section>`;
-    q('mv4-file').onchange = () => {
-      selectedFile = q('mv4-file').files?.[0] || null;
-      q('mv4-filename').textContent = selectedFile
-        ? `${selectedFile.name} · ${selectedFile.size.toLocaleString()} bytes`
-        : '선택된 DLL 없음 · 최대 64MiB';
-      status(selectedFile && !validFile(selectedFile)
-        ? '64MiB 이하의 DLL 파일을 선택하세요.'
-        : selectedFile ? '선택한 DLL 파일을 확인하고 커널 매핑을 요청하세요.'
-          : 'DLL 파일을 선택하세요.', Boolean(selectedFile && !validFile(selectedFile)));
-    };
+    q('mv4-select').onclick = chooseFile;
     q('mv4-send').onclick = submit;
     status(ready() ? 'DLL 파일을 선택하고 커널 매핑을 요청하세요' : '프로세스를 선택하고 드라이버 2.6 이상 / 빌드 20261012 연결을 확인하세요');
     draw();
