@@ -22,10 +22,12 @@ class ASGIClient:
     def __exit__(self, *args):
         pass
 
-    def request(self, method, url, json=None, headers=None):
+    def request(self, method, url, json=None, headers=None, content=None):
         async def call():
             split = urlsplit(url)
-            payload = JSON.dumps(json).encode() if json is not None else b''
+            if json is not None and content is not None:
+                raise ValueError('Use either JSON or raw content, not both')
+            payload = JSON.dumps(json).encode() if json is not None else bytes(content or b'')
             request_headers = {k.lower(): v for k, v in (headers or {}).items()}
             if json is not None:
                 request_headers['content-type'] = 'application/json'

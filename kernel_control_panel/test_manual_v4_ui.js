@@ -38,7 +38,7 @@ function harness() {
       calls.push({path, options});
       if (fetchHandler) return fetchHandler(path, options);
       if (path === '/api/manual-v4/jobs') return response({success: true, jobs});
-      if (path === '/api/manual-v4/map') return response({success: true, id: 'job-1', state: 'queued'});
+      if (path.startsWith('/api/manual-v4/upload-map?')) return response({success: true, id: 'job-1', state: 'queued'});
       throw Error('Unexpected endpoint: ' + path);
     },
     setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
@@ -60,7 +60,7 @@ function harness() {
     set connected(value) { connected = value; },
     set jobs(value) { jobs = value; },
     set fetch(value) { fetchHandler = value; },
-    maps: () => calls.filter(call => call.path === '/api/manual-v4/map'),
+    maps: () => calls.filter(call => call.path.startsWith('/api/manual-v4/upload-map?')),
     async render() { this.view.render(suite); await settle(); },
     async tick() {
       const [id, callback] = timers.entries().next().value;
@@ -75,12 +75,10 @@ async function navigationAndPollingOnlyQuery() {
   await h.render();
   assert.match(h.root.innerHTML, /ManualV4/);
   assert.match(h.root.innerHTML, /failcode 0/);
-  assert.doesNotMatch(h.root.innerHTML, /type="file"|mv4-upload|mv4-runtime|data-mv4-action|PDB/);
+  assert.match(h.root.innerHTML, /id="mv4-file" type="file" accept="\.dll/);
+  assert.doesNotMatch(h.root.innerHTML, /mv4-path|절대 경로 입력|mv4-runtime|data-mv4-action|PDB/);
   assert.equal(h.element('mv4-send').disabled, false);
-  h.element('mv4-path').value = 'C:\\DLLs\\Example.dll';
-  h.element('mv4-path').oninput();
-  await h.render();
-  assert.equal(h.element('mv4-path').value, 'C:\\DLLs\\Example.dll');
+  assert.equal(h.element('mv4-filename').textContent, '선택된 DLL 없음 · 최대 64MiB');
   await h.tick();
   assert(h.calls.every(call => !call.options.method || call.options.method === 'GET'));
   assert.equal(h.timers.size, 1);
@@ -91,7 +89,6 @@ async function navigationAndPollingOnlyQuery() {
 async function identityTargetConnectionAndBusyGate() {
   const h = harness();
   await h.render();
-  h.element('mv4-path').value = 'C:\\DLLs\\Example.dll';
   for (const key of ['', '0', '01', '-1', '1e3', '18446744073709551616']) {
     h.key = key;
     h.view.targetChanged();
@@ -120,39 +117,44 @@ async function identityTargetConnectionAndBusyGate() {
   h.view.dispose();
 }
 
-async function pathValidationAndExactContract() {
+async function filePickerValidationAndExactContract() {
   const h = harness();
   await h.render();
-  for (const path of ['', 'Example.dll', 'C:Example.dll', '/tmp/Example.dll', 'C:\\DLLs\\Example.exe', 'C:\\DLLs\\bad\x00.dll']) {
-    h.element('mv4-path').value = path;
+  for (const file of [null, {name: 'Example.exe', size: 10}, {name: 'folder/Example.dll', size: 10},
+    {name: 'large.dll', size: 64 * 1024 * 1024 + 1}, {name: 'empty.dll', size: 0}]) {
+    h.element('mv4-file').files = file ? [file] : [];
+    h.element('mv4-file').onchange();
     await h.element('mv4-send').onclick();
-    assert.equal(h.maps().length, 0, 'Invalid path: ' + path);
+    assert.equal(h.maps().length, 0, 'Invalid file: ' + (file?.name || 'none'));
     assert.equal(h.element('mv4-status').error, true);
   }
-  for (const path of ['C:\\DLLs\\Example.dll', '\\\\server\\share\\Example.DLL', '\\\\?\\C:\\DLLs\\Example.dll', '\\??\\C:\\DLLs\\Example.dll']) {
-    h.element('mv4-path').value = path;
-    await h.element('mv4-send').onclick();
-    const call = h.maps().at(-1);
-    assert.equal(call.options.method, 'POST');
-    assert.equal(call.options.headers['Content-Type'], 'application/json');
-    assert.deepEqual(JSON.parse(call.options.body), {pid: 123, process_start_key: '18446744073709551615', path});
-    assert.equal(h.busy, false);
-    assert.equal(h.timers.size, 1);
-  }
+  const file = {name: 'Pícked & Example.dll', size: 4096};
+  h.element('mv4-file').files = [file];
+  h.element('mv4-file').onchange();
+  assert.match(h.element('mv4-filename').textContent, /Pícked & Example\.dll/);
+  await h.element('mv4-send').onclick();
+  const call = h.maps().at(-1);
+  assert.equal(call.path, '/api/manual-v4/upload-map?pid=123&process_start_key=18446744073709551615&filename=P%C3%ADcked%20%26%20Example.dll');
+  assert.equal(call.options.method, 'POST');
+  assert.equal(call.options.headers['Content-Type'], 'application/octet-stream');
+  assert.equal(call.options.body, file);
+  assert.equal(h.busy, false);
+  assert.equal(h.timers.size, 1);
   h.view.dispose();
 }
 
 async function doubleClickAndDisposeDuringMutation() {
   const h = harness(), held = deferred();
-  h.fetch = (path) => path.endsWith('/map') ? held.promise : response({success: true, jobs: []});
+  h.fetch = (path) => path.includes('/upload-map?') ? held.promise : response({success: true, jobs: []});
   await h.render();
-  h.element('mv4-path').value = 'C:\\DLLs\\Example.dll';
+  h.element('mv4-file').files = [{name: 'Example.dll', size: 10}];
+  h.element('mv4-file').onchange();
   const first = h.element('mv4-send').onclick();
   const second = h.element('mv4-send').onclick();
   await settle();
   assert.equal(h.maps().length, 1);
   assert.equal(h.busy, true);
-  assert.equal(h.element('mv4-path').disabled, true);
+  assert.equal(h.element('mv4-file').disabled, true);
   h.view.dispose();
   const html = h.root.innerHTML;
   held.resolve(response({success: true, state: 'queued'}));
@@ -208,9 +210,10 @@ async function staleQueriesCannotOverwriteCurrentView() {
 
 async function failuresNeverRetryMapping() {
   const h = harness();
-  h.fetch = path => path.endsWith('/map') ? response({success: false, detail: '커널 요청 실패'}, false) : response({success: true, jobs: []});
+  h.fetch = path => path.includes('/upload-map?') ? response({success: false, detail: '커널 요청 실패'}, false) : response({success: true, jobs: []});
   await h.render();
-  h.element('mv4-path').value = 'C:\\DLLs\\Example.dll';
+  h.element('mv4-file').files = [{name: 'Example.dll', size: 10}];
+  h.element('mv4-file').onchange();
   await h.element('mv4-send').onclick();
   assert.equal(h.maps().length, 1);
   assert.equal(h.element('mv4-status').textContent, '커널 요청 실패');
@@ -220,7 +223,7 @@ async function failuresNeverRetryMapping() {
   assert.equal(h.maps().length, 1);
   h.view.reset();
   await h.render();
-  assert.equal(h.element('mv4-path').value, '');
+  assert.equal(h.element('mv4-filename').textContent, '선택된 DLL 없음 · 최대 64MiB');
   assert.equal(h.maps().length, 1);
   h.view.dispose();
 }
@@ -244,7 +247,7 @@ function driverVersionGate() {
 
 (async () => {
   for (const test of [navigationAndPollingOnlyQuery, identityTargetConnectionAndBusyGate,
-    pathValidationAndExactContract, doubleClickAndDisposeDuringMutation,
+    filePickerValidationAndExactContract, doubleClickAndDisposeDuringMutation,
     resultsKeepPrecisionAndEscapeMarkup, staleQueriesCannotOverwriteCurrentView,
     failuresNeverRetryMapping, driverVersionGate]) await test();
   console.log('PASS ManualV4 kernel-map UI: 8 mock regression groups');

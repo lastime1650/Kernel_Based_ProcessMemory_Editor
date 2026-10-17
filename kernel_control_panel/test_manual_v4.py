@@ -456,6 +456,42 @@ class ManualTests(unittest.TestCase):
         self.assertEqual(len(self.manager.pool.items), 1)
         self.assertEqual(self.studio.driver.calls, [])
 
+    def test_file_picker_upload_maps_local_copy_and_cleans_it_after_dispatch(self):
+        payload = b'MZ\x00fixture-dll-bytes'
+        headers = dict(self.headers, **{'content-type': 'application/octet-stream',
+                                        'content-length': str(len(payload))})
+        url = '/api/manual-v4/upload-map?pid=123&process_start_key=777&filename=Picked.dll'
+        response = self.client.post(url, content=payload, headers=headers)
+        self.assertEqual(response.status_code, 200, response.content)
+        job = response.json()
+        uploaded = Path(job['path'])
+        self.assertEqual(job['display_name'], 'Picked.dll')
+        self.assertEqual(uploaded.parent, self.manager.upload_root)
+        self.assertEqual(uploaded.read_bytes(), payload)
+        self.assertEqual(len(self.manager.pool.items), 1)
+
+        duplicate = self.client.post(url.replace('Picked.dll', 'SameBytes.dll'),
+                                     content=payload, headers=headers)
+        self.assertEqual(duplicate.status_code, 200, duplicate.content)
+        self.assertEqual(duplicate.json()['id'], job['id'])
+        self.assertEqual(len(self.manager.pool.items), 1)
+
+        self.execute()
+        self.assertEqual(self.studio.driver.calls, [(123, str(uploaded))])
+        self.assertFalse(uploaded.exists())
+
+    def test_file_picker_rejects_non_dll_and_oversized_upload_before_saving(self):
+        headers = dict(self.headers, **{'content-type': 'application/octet-stream', 'content-length': '3'})
+        bad = self.client.post('/api/manual-v4/upload-map?pid=123&process_start_key=777&filename=bad.exe',
+                               content=b'abc', headers=headers)
+        self.assertEqual(bad.status_code, 400)
+        too_large = self.client.post(
+            '/api/manual-v4/upload-map?pid=123&process_start_key=777&filename=large.dll',
+            content=b'', headers=dict(headers, **{'content-length': str(M.MAX_UPLOAD_BYTES + 1)}))
+        self.assertEqual(too_large.status_code, 413)
+        self.assertEqual(self.manager.pool.items, [])
+        self.assertEqual(list(self.manager.upload_root.iterdir()), [])
+
     def test_old_upload_request_and_unmap_recover_routes_are_absent(self):
         for path in ('/bundles', '/request', '/jobs/'+'a'*32+'/unmap', '/jobs/'+'a'*32+'/recover'):
             response = self.client.post('/api/manual-v4'+path, json=self.body(), headers=self.headers)

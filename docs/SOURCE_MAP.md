@@ -2,7 +2,7 @@
 
 [문서 홈](README.md) · [API / ABI](reference/API_ABI.md) · [검증 기록](VALIDATION.md)
 
-**드라이버 2.6.0.1 · Kernel Studio 3.2.2 · 2026-10-12 동기화**
+**드라이버 2.6.0.2 · Kernel Studio 3.2.3 · 2026-10-17 동기화**
 
 > [!NOTE]
 > 공개 저장소에는 현재 프로젝트의 소스·테스트·빌드 설정을 담습니다. 실행 기록, 대상 데이터, 빌드 산출물은 제외합니다. 파일별 현재 원본 대조값은 [SHA-256 목록](reference/SOURCE_SHA256.tsv)에 있습니다.
@@ -35,7 +35,7 @@ flowchart LR
 | [main.cpp](../main.cpp) | 드라이버 진입, 장치·심볼릭 링크, IRP, 종료 및 rundown |
 | [ioctl_helper.hpp](../ioctl_helper.hpp) | 기본 IOCTL 식별자, 패킷 검증, 요청 디스패치 |
 | [helper.hpp](../helper.hpp) | 프로세스·메모리·스레드·중단점 구현과 자원 수명 |
-| [MANUAL_KERNEL.hpp](../MANUAL_KERNEL.hpp) | PE 검사, 이미지 구성, 재배치, IAT, 보호 적용, DllMain, 실패 진단 |
+| [MANUAL_KERNEL.hpp](../MANUAL_KERNEL.hpp) | PE 검사, 이미지 구성, 재배치, IAT, 보호 적용, OnlyMapping / DllMain, 실패 진단 |
 | [manual_map_protocol.h](../manual_map_protocol.h) | ManualV4 v3, 2104-byte 요청·응답, failcode 정의, 1024-byte failmessage |
 | [remote_call.hpp](../remote_call.hpp) · [remote_call_protocol.h](../remote_call_protocol.h) | 장치 파일 소유 함수 호출 기록과 create/query/release ABI |
 | [ob_callbacks.hpp](../ob_callbacks.hpp) · [ob_callbacks_protocol.h](../ob_callbacks_protocol.h) | Ob observer 등록·해제·상태와 V2 ABI |
@@ -55,6 +55,7 @@ flowchart LR
 | 서버·작업·세션 | [server.py](../kernel_control_panel/server.py), [studio_api.py](../kernel_control_panel/studio_api.py), [request_scheduler.py](../kernel_control_panel/request_scheduler.py) | 공통 Studio UI |
 | 장치 연결·ABI | [driver_bridge.py](../kernel_control_panel/driver_bridge.py), [kernel_only_bridge.py](../kernel_control_panel/kernel_only_bridge.py) | 상태·기능 표시 |
 | ManualV4 | [manual_v4.py](../kernel_control_panel/manual_v4.py), [manual_map_protocol.py](../kernel_control_panel/manual_map_protocol.py) | [manual_v4.js](../kernel_control_panel/static/manual_v4.js) |
+| ManualV4_Viewer | [image_workbench.py](../kernel_control_panel/image_workbench.py), [studio_api.py](../kernel_control_panel/studio_api.py) | [manual_v4_viewer.js](../kernel_control_panel/static/manual_v4_viewer.js), 공통 [function_views.js](../kernel_control_panel/static/function_views.js) |
 | EPROCESS | [eprocess_workbench.py](../kernel_control_panel/eprocess_workbench.py), [presets](../kernel_control_panel/presets/eprocess) | [eprocess_workspace.js](../kernel_control_panel/static/eprocess_workspace.js) |
 | Ob callbacks | [ob_callbacks_protocol.py](../kernel_control_panel/ob_callbacks_protocol.py), `studio_api.py` | [ob_callbacks.js](../kernel_control_panel/static/ob_callbacks.js) |
 | 검색 | [scan_workspace.py](../kernel_control_panel/scan_workspace.py), [kernel_scanner.py](../kernel_control_panel/kernel_scanner.py) | [scan_workspace.js](../kernel_control_panel/static/scan_workspace.js) |
@@ -86,4 +87,4 @@ flowchart LR
 - ManualV4, 원격 함수 호출, 기존 DLL 등록은 서로 다른 경로입니다. 상세 ABI와 실행 의미는 [API / ABI](reference/API_ABI.md)를 확인하세요.
 - NT 내부 구조·루틴과 OS별 EPROCESS 레이아웃에 의존합니다. x64 로컬 검증을 ARM64 또는 모든 Windows 빌드 검증으로 확대 해석하지 않습니다.
 
-**English:** Sources, tests and build configuration are synchronized to driver **2.6.0.1** and panel **3.2.2**. Tables link directly to implementation. Current-source integrity is recorded in the SHA-256 manifest; build artifacts and local runtime data are excluded. CI uses mocked target access, while DIA analyzes a locally built fixture.
+**English:** Sources, tests and build configuration are synchronized to driver **2.6.0.2** and panel **3.2.3**. Tables link directly to implementation. Current-source integrity is recorded in the SHA-256 manifest; build artifacts and local runtime data are excluded. CI uses mocked target access, while DIA analyzes a locally built fixture.

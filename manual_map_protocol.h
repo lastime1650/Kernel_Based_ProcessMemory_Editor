@@ -1,7 +1,8 @@
 #pragma once
 
 // Include ntifs.h (kernel) or windows.h/winioctl.h (client) first.
-// Version 3 appends a bounded ANSI failure message; older packets must not be reused.
+// Version 3 appends a bounded ANSI failure message. OnlyMapping uses one byte of
+// the existing reserved DWORD so the packet size and legacy false behavior stay stable.
 #define IOCTL_MANUAL_MAP \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x878, METHOD_BUFFERED, \
              FILE_READ_ACCESS | FILE_WRITE_ACCESS)
@@ -170,13 +171,16 @@ enum MKM_FAIL_CODE : ULONG
     MKM_FAIL_DLL_MAIN_STUB_FREE = 136,
     // MAP_FINAL
     MKM_FAIL_MAP_FINAL_STATUS = 137,
+    // REQUEST extension; appended to preserve all existing failure locations.
+    MKM_FAIL_REQUEST_ONLY_MAPPING = 138,
 };
 
 #pragma pack(push, 1)
 typedef struct _MANUAL_MAP_REQUEST
 {
     ULONG Version;
-    ULONG Reserved;                    // Input: must be zero.
+    BOOLEAN OnlyMapping;               // Input: TRUE maps without calling the DLL entry point.
+    UCHAR Reserved[3];                 // Input: must be zero.
     ULONGLONG ProcessId;
     WCHAR ImagePath[MKM_MAX_PATH];      // Terminated NT disk path.
     NTSTATUS ResultStatus;
@@ -188,6 +192,9 @@ typedef struct _MANUAL_MAP_REQUEST
 #pragma pack(pop)
 
 static_assert(sizeof(MANUAL_MAP_REQUEST) == MKM_REQUEST_BYTES, "manual-map wire ABI");
+static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, OnlyMapping) == 4, "manual-map only-mapping offset");
+static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, Reserved) == 5, "manual-map reserved offset");
+static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, ProcessId) == 8, "manual-map PID offset");
 static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, ResultStatus) == 1056, "manual-map status offset");
 static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, MappedBase) == 1060, "manual-map base offset");
 static_assert(FIELD_OFFSET(MANUAL_MAP_REQUEST, EntryPoint) == 1068, "manual-map entry offset");

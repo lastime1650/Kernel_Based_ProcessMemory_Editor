@@ -2,7 +2,7 @@
 
 [한국어 개요](../../README.md) · [English](../en/GUIDE.md) · [简体中文](../zh-CN/GUIDE.md) · [Español](../es/GUIDE.md)
 
-**드라이버 2.6.0.1 · Kernel Studio 3.2.2 · Windows x64 · ManualV4 ABI v3 / 2104바이트**
+**드라이버 2.6.0.2 · Kernel Studio 3.2.3 · Windows x64 · ManualV4 ABI v3 / 2104바이트**
 
 > [!IMPORTANT]
 > 새 드라이버와 패널을 함께 사용하세요. 대시보드는 디스크의 `.sys` 파일이 아니라 장치에 **실제로 로드된 버전**을 표시합니다. 빌드 성공과 드라이버 로드 성공은 별도로 확인해야 합니다.
@@ -34,7 +34,7 @@ python kernel_studio.py
 
 [http://127.0.0.1:8005/](http://127.0.0.1:8005/)를 엽니다. `kernel_studio.py`와 `server.py` 모두 기본 포트가 **8005**입니다. 변경하려면 `python kernel_studio.py --port 8006`을 사용합니다. 서버는 로컬 루프백에만 연결하며 장치·관리 상태가 프로세스마다 따로 있으므로 worker는 하나만 실행합니다. 소스 서버는 Ctrl+C로 종료합니다.
 
-패널 패키지는 빌드 환경에 PyInstaller를 설치한 뒤 이 폴더에서 `tools\build_release.cmd`를 실행해 만듭니다. `dist/3.2.2/KernelStudio`에 수집하며 버전 폴더가 이미 있으면 시각을 붙인 새 하위 폴더를 만듭니다. 기존 패널을 닫고 새 `KernelStudio.exe`를 실행합니다.
+패널 패키지는 빌드 환경에 PyInstaller를 설치한 뒤 이 폴더에서 `tools\build_release.cmd`를 실행해 만듭니다. `dist/3.2.3/KernelStudio`에 수집하며 버전 폴더가 이미 있으면 시각을 붙인 새 하위 폴더를 만듭니다. 기존 패널을 닫고 새 `KernelStudio.exe`를 실행합니다.
 
 > [!NOTE]
 > `/api/build`는 실행 중인 패널 정보를, `/api/status`는 연결된 드라이버 정보를 반환합니다. 파일만 교체하면 이미 실행 중인 패널이나 로드된 드라이버는 바뀌지 않습니다.
@@ -52,7 +52,7 @@ python kernel_studio.py
 
 ## 4. ManualV4 결과 해석
 
-**ManualV4**에서 대상을 선택하고 `C:\DLLs\Example.dll` 같은 DLL 절대 경로를 입력한 뒤 **커널 매핑 요청**을 누릅니다. 패널이 프로세스 식별값을 확인하고 커널 요청을 보냅니다. 화면이나 작업 목록 새로 고침은 매핑을 다시 요청하지 않습니다.
+**ManualV4**에서 대상을 선택하고 **DLL 파일 선택**으로 파일을 고른 뒤 **커널 매핑 요청**을 누릅니다. 최대 64MiB 파일을 로컬 패널에 업로드하고, 프로세스 식별값을 확인한 뒤 캐시 경로를 커널에 전달합니다. **매핑만 수행**을 선택하면 이미지와 보호 속성까지 준비한 뒤 DLL 진입점 호출을 생략합니다. 새 **ManualV4_Viewer** 메뉴에서 성공 매핑과 PDB를 선택해 시작 주소·프로세스 시작 키·PDB GUID/Age 검증 후 함수 주소와 매개변수를 확인할 수 있습니다. 화면이나 작업 목록 새로 고침은 매핑을 다시 요청하지 않습니다.
 
 | 결과 | 의미 |
 |---|---|
@@ -61,7 +61,7 @@ python kernel_studio.py
 | `failmessage` | 분기에서 관찰한 API·조건·실제 값·NTSTATUS |
 | 응답 없음 / 유효하지 않음 | 미확인, 진단은 `null`, 자동 재시도 없음 |
 
-v3 패킷은 **2104바이트**입니다. `failcode`의 오프셋은 **1076**, `failmessage[1024]`는 **1080**입니다. 입력 진단은 모두 0이고 성공 시 코드 0·빈 메시지를 반환합니다. 정리 중 최종 상태가 바뀌어도 최초 코드·메시지는 유지합니다. 문자열은 ASCII/ANSI, NUL 종결과 제로 tail을 사용하며 공간을 넘으면 `[truncated]`를 표시합니다.
+v3 패킷은 **2104바이트**입니다. `OnlyMapping` BOOLEAN은 기존 reserved DWORD의 첫 바이트(오프셋 **4**)를 사용하므로 나머지 세 reserved 바이트는 0이어야 하고, 이전 요청의 false 동작과 필드 오프셋은 유지됩니다. `failcode`의 오프셋은 **1076**, `failmessage[1024]`는 **1080**입니다. 입력 진단은 모두 0이고 성공 시 코드 0·빈 메시지를 반환합니다. 정리 중 최종 상태가 바뀌어도 최초 코드·메시지는 유지합니다. 문자열은 ASCII/ANSI, NUL 종결과 제로 tail을 사용하며 공간을 넘으면 `[truncated]`를 표시합니다.
 
 **119**라면 섹션 이름/RVA, 요청 주소·크기·보호 속성과 `ZwProtectVirtualMemory` 상태를 확인합니다. 호출 직전 진단에는 다음 내용도 있습니다.
 

@@ -119,9 +119,9 @@
   <ItemGroup>
     <Inf Include="SampleKernel1.inf">
       <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
-      <DateStamp>10/12/2026</DateStamp>
+      <DateStamp>10/17/2026</DateStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
-      <TimeStamp>2.6.0.1</TimeStamp>
+      <TimeStamp>2.6.0.2</TimeStamp>
     </Inf>
   </ItemGroup>
   <ItemGroup>
@@ -138,6 +138,7 @@
     <ClInclude Include="remote_call_protocol.h" />
     <ClInclude Include="driver_version.h" />
     <ClInclude Include="MANUAL_KERNEL.hpp" />
+    <ClInclude Include="APC.hpp" />
     <ClInclude Include="manual_map_protocol.h" />
     <ClInclude Include="ob_callbacks.hpp" />
     <ClInclude Include="ob_callbacks_protocol.h" />

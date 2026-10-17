@@ -1,0 +1,11 @@
+.apcn-table-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px}
+.apcn-card .table-wrap{max-height:360px}
+.apcn-card tbody tr[role=button]{cursor:pointer}
+.apcn-card tbody tr[role=button]:focus td{outline:1px solid var(--accent);outline-offset:-1px}
+.apcn-card tbody tr.apcn-selected td{background:#193337;color:var(--text)}
+.apcn-target-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.apcn-target-fields input{width:100%;font-family:Consolas,monospace}
+.apcn-address-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.apcn-address-fields input{font-family:Consolas,monospace}
+.apcn-ok{color:var(--accent)}
+@media(max-width:800px){.apcn-target-fields,.apcn-address-fields{grid-template-columns:1fr}.apcn-table-toolbar{align-items:flex-start;flex-direction:column}}

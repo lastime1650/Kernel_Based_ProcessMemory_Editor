@@ -2,7 +2,7 @@
 
 [English overview](../../README.en.md) · [한국어](../ko/GUIDE.md) · [简体中文](../zh-CN/GUIDE.md) · [Español](../es/GUIDE.md)
 
-**Driver 2.6.0.1 · Kernel Studio 3.2.2 · Windows x64 · ManualV4 ABI v3 / 2104 bytes**
+**Driver 2.6.0.2 · Kernel Studio 3.2.3 · Windows x64 · ManualV4 ABI v3 / 2104 bytes**
 
 > [!IMPORTANT]
 > Use the updated driver and panel together. The dashboard shows the device's **loaded version**, not the version of a `.sys` on disk. Build success and driver load success are separate checks.
@@ -34,7 +34,7 @@ python kernel_studio.py
 
 Open [http://127.0.0.1:8005/](http://127.0.0.1:8005/). Both `kernel_studio.py` and `server.py` default to **8005**. Use `python kernel_studio.py --port 8006` for another port. The server binds to loopback; run one worker because device and management state are local to that process. Stop the source server with Ctrl+C.
 
-For a packaged build, install PyInstaller in the build environment and run `tools\build_release.cmd` from this directory. Output uses `dist/3.2.2/KernelStudio`, or a fresh timestamped child if that version directory exists. Run the new `KernelStudio.exe` after closing the old panel.
+For a packaged build, install PyInstaller in the build environment and run `tools\build_release.cmd` from this directory. Output uses `dist/3.2.3/KernelStudio`, or a fresh timestamped child if that version directory exists. Run the new `KernelStudio.exe` after closing the old panel.
 
 > [!NOTE]
 > `/api/build` describes the running panel. `/api/status` reports the actual connected driver. Replacing files alone updates neither an already running panel nor an already loaded driver.
@@ -52,7 +52,7 @@ Move a result to **메모리 편집** (memory editor), Watch, structures or disa
 
 ## 4. Read ManualV4 results correctly
 
-Choose a target in **ManualV4**, enter an absolute disk path such as `C:\DLLs\Example.dll`, then submit **커널 매핑 요청**. The panel validates process identity before issuing the kernel request. Refreshing the page or job list does not submit another mapping request.
+Choose a target and a DLL file in **ManualV4**, then submit **커널 매핑 요청**. The panel uploads files up to 64 MiB to its local cache and validates process identity before sending the cached path to the kernel. Refreshing the page or job list does not submit another mapping request.
 
 | Result | Interpretation |
 |---|---|

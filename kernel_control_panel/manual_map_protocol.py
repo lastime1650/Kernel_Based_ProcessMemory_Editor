@@ -14,10 +14,16 @@ STATUS_UNSUCCESSFUL = -1073741823
 IDENTITY_NOTE = '매핑 직전에 PID와 시작 키를 확인합니다. 이 IOCTL ABI에는 시작 키가 없어 확인 이후의 PID 교체를 원자적으로 차단하지 못합니다.'
 
 
+class MANUAL_MAP_FLAGS(ctypes.Union):
+    _pack_ = 1
+    _fields_ = [('Reserved', ctypes.c_uint32), ('OnlyMapping', ctypes.c_uint8)]
+
+
 class MANUAL_MAP_REQUEST(ctypes.Structure):
     _pack_ = 1
+    _anonymous_ = ('Flags',)
     # Explicit uint16 WCHARs keep the Windows wire layout on test platforms too.
-    _fields_ = [('Version', ctypes.c_uint32), ('Reserved', ctypes.c_uint32),
+    _fields_ = [('Version', ctypes.c_uint32), ('Flags', MANUAL_MAP_FLAGS),
                 ('ProcessId', ctypes.c_uint64), ('ImagePath', ctypes.c_uint16 * MAX_PATH),
                 ('ResultStatus', ctypes.c_int32), ('MappedBase', ctypes.c_uint64),
                 ('EntryPoint', ctypes.c_uint64), ('failcode', ctypes.c_uint32),
@@ -26,9 +32,10 @@ class MANUAL_MAP_REQUEST(ctypes.Structure):
 
 assert ctypes.sizeof(MANUAL_MAP_REQUEST) == REQUEST_BYTES
 assert {name: getattr(MANUAL_MAP_REQUEST, name).offset for name, _ in MANUAL_MAP_REQUEST._fields_} == {
-    'Version': 0, 'Reserved': 4, 'ProcessId': 8, 'ImagePath': 16,
+    'Version': 0, 'Flags': 4, 'ProcessId': 8, 'ImagePath': 16,
     'ResultStatus': 1056, 'MappedBase': 1060, 'EntryPoint': 1068, 'failcode': 1076,
     'failmessage': 1080}
+assert MANUAL_MAP_REQUEST.OnlyMapping.offset == 4 and MANUAL_MAP_REQUEST.Reserved.offset == 4
 
 
 def valid_result_failcode(status, failcode):
@@ -106,12 +113,15 @@ def nt_dll_path(value):
     return normalized, encoded + b'\0\0'
 
 
-def request(pid, path):
+def request(pid, path, only_mapping=False):
     if isinstance(pid, bool) or not isinstance(pid, int) or not 0 < pid <= 0xffffffff:
         raise ValueError('대상 PID를 확인하세요')
+    if type(only_mapping) is not bool:
+        raise ValueError('OnlyMapping은 true 또는 false여야 합니다')
     normalized, encoded = nt_dll_path(path)
     packet = MANUAL_MAP_REQUEST()
     packet.Version = VERSION
+    packet.OnlyMapping = only_mapping
     packet.ProcessId = pid
     packet.ResultStatus = STATUS_UNSUCCESSFUL
     ctypes.memmove(ctypes.addressof(packet) + MANUAL_MAP_REQUEST.ImagePath.offset, encoded, len(encoded))

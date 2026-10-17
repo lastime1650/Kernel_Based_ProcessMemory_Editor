@@ -2,8 +2,10 @@
 import asyncio
 import copy
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import math
+import ntpath
 from pathlib import Path
 import re
 import threading
@@ -13,7 +15,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 from atomic_metadata import write_json
-from manual_map_protocol import (IDENTITY_NOTE, request as map_request,
+from manual_map_protocol import (IDENTITY_NOTE, MAX_IMAGE_BYTES, request as map_request,
                                  valid_result_addresses, valid_result_failcode, valid_result_diagnostic)
 from request_scheduler import scope
 from runtime_paths import data_path
@@ -23,7 +25,9 @@ KEY = re.compile(r'^[0-9a-f]{32}$')
 # Stable job-history marker; the current IOCTL packet version is defined in the protocol module.
 BACKEND = 'kernel_manual_map_v1'
 MAX_JOBS = 256
+MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES
 JOB_FIELDS = {'id', 'backend', 'pid', 'process_start_key', 'path', 'nt_path', 'state',
+              'display_name', 'only_mapping',
               'created_at', 'started_at', 'finished_at', 'mapped_base', 'entry_point',
               'result_status', 'failcode', 'failmessage', 'output', 'error', 'execution_unknown', 'identity_check', 'note',
               'transport_ok', 'packet_valid', 'error_code', 'bytes_returned'}
@@ -48,6 +52,9 @@ class ManualV4:
         self.studio = studio
         self.root = Path(root) if root is not None else data_path('assets') / 'manual_v4_kernel'
         self.root.mkdir(parents=True, exist_ok=True)
+        self.upload_root = self.root / 'uploads'
+        self.upload_root.mkdir(parents=True, exist_ok=True)
+        self._reap_uploads()
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='manual-v4-kernel')
         self.jobs = {}
@@ -77,6 +84,11 @@ class ManualV4:
                 for field in ('output', 'error'):
                     if not isinstance(record.get(field, ''), str) or len(record.get(field, '')) > 8192:
                         raise ValueError('Invalid persisted text')
+                if ('display_name' in record and (not isinstance(record['display_name'], str)
+                        or len(record['display_name']) > 255 or any(ord(char) < 0x20 for char in record['display_name']))):
+                    raise ValueError('Invalid persisted display name')
+                if 'only_mapping' in record and type(record['only_mapping']) is not bool:
+                    raise ValueError('Invalid persisted OnlyMapping flag')
                 for field in ('execution_unknown', 'transport_ok', 'packet_valid'):
                     if field in record and type(record[field]) is not bool:
                         raise ValueError('Invalid persisted flag')
@@ -108,6 +120,8 @@ class ManualV4:
                         record.update(state='indeterminate', execution_unknown=True, failcode=None, failmessage=None, output='',
                                       error='저장된 커널 진단 문자열이 불완전하거나 결과와 일치하지 않습니다. 자동 재요청하지 않습니다.')
                 record = {field: value for field, value in record.items() if field in JOB_FIELDS}
+                record.setdefault('display_name', ntpath.basename(record['path']))
+                record.setdefault('only_mapping', False)
                 # Older saved jobs have no diagnostic field; do not invent success (zero).
                 record.setdefault('failcode', None)
                 record.setdefault('failmessage', None)
@@ -128,6 +142,27 @@ class ManualV4:
                 self.jobs[record['id']] = record
             except (OSError, ValueError, KeyError, TypeError, OverflowError):
                 continue
+
+    def _reap_uploads(self):
+        cutoff = time.time() - 24 * 60 * 60
+        for path in self.upload_root.iterdir():
+            try:
+                if (not path.is_symlink() and path.is_file()
+                        and path.suffix.lower() in ('.dll', '.part') and path.stat().st_mtime < cutoff):
+                    path.unlink()
+            except OSError:
+                continue
+
+    def discard_upload(self, path):
+        try:
+            candidate = Path(path)
+            if (candidate.suffix.lower() != '.dll' or candidate.is_symlink()
+                    or not re.fullmatch(r'[0-9a-f]{64}\.dll', candidate.name)):
+                return
+            if candidate.resolve().parent == self.upload_root.resolve():
+                candidate.unlink(missing_ok=True)
+        except (OSError, RuntimeError):
+            pass
 
     @staticmethod
     def _identity_format(identity):
@@ -163,10 +198,17 @@ class ManualV4:
                 self.closing = False
 
     def submit(self, body):
-        if not isinstance(body, dict) or set(body) - {'pid', 'process_start_key', 'path'}:
-            raise ValueError('PID, 프로세스 시작 키와 디스크 DLL 경로만 전달하세요')
+        if not isinstance(body, dict) or set(body) - {'pid', 'process_start_key', 'path', 'display_name', 'only_mapping'}:
+            raise ValueError('PID, 프로세스 시작 키와 DLL 경로만 전달하세요')
         pid, identity, path = body.get('pid'), body.get('process_start_key'), body.get('path')
         _, normalized = map_request(pid, path)
+        only_mapping = body.get('only_mapping', False)
+        if type(only_mapping) is not bool:
+            raise ValueError('OnlyMapping은 true 또는 false여야 합니다')
+        display_name = body.get('display_name', ntpath.basename(path))
+        if (not isinstance(display_name, str) or not display_name or len(display_name) > 255
+                or any(ord(char) < 0x20 for char in display_name)):
+            raise ValueError('DLL 파일 이름을 확인하세요')
         self._owner(pid, identity)
         with self.lock:
             if self.closing:
@@ -177,7 +219,7 @@ class ManualV4:
             active = [job for job in self.jobs.values() if job['state'] in ACTIVE]
             for job in active:
                 if (job['pid'], job['process_start_key']) == (pid, identity):
-                    if job['nt_path'] == normalized:
+                    if job['nt_path'] == normalized and job['only_mapping'] == only_mapping:
                         return self.get(job['id'])
                     raise ValueError('해당 대상의 커널 매핑 작업이 진행 중입니다')
             if len(active) >= 4:
@@ -186,7 +228,8 @@ class ManualV4:
                 raise ValueError('커널 매핑 작업 기록 상한에 도달했습니다')
             key = uuid.uuid4().hex
             job = dict(id=key, backend=BACKEND, pid=pid, process_start_key=identity,
-                       path=path, nt_path=normalized, state='queued', created_at=time.time(),
+                       path=path, display_name=display_name, nt_path=normalized, only_mapping=only_mapping,
+                       state='queued', created_at=time.time(),
                        mapped_base='0x0', entry_point='0x0', result_status=None, failcode=None, failmessage=None,
                        output='', error='', execution_unknown=False,
                        identity_check='preflight_only', note=IDENTITY_NOTE)
@@ -207,9 +250,9 @@ class ManualV4:
                 raise ValueError('작업을 찾을 수 없습니다')
             return dict(success=True, **copy.deepcopy(self.jobs[key]))
 
-    def list(self):
+    def list(self, limit=100):
         with self.lock:
-            keys = sorted(self.jobs, key=lambda key: self.jobs[key]['created_at'], reverse=True)[:100]
+            keys = sorted(self.jobs, key=lambda key: self.jobs[key]['created_at'], reverse=True)[:limit]
             return dict(success=True, jobs=[self.get(key) for key in keys])
 
     def _run(self, key):
@@ -234,7 +277,10 @@ class ManualV4:
                     if self.closing:
                         raise RuntimeError('패널 종료 전에 시작하지 못한 작업입니다')
                     attempted = True
-                result = self.studio.driver.manual_map_dll(job['pid'], job['path'])
+                if job['only_mapping']:
+                    result = self.studio.driver.manual_map_dll(job['pid'], job['path'], True)
+                else:
+                    result = self.studio.driver.manual_map_dll(job['pid'], job['path'])
             with self.lock:
                 for field in ('transport_ok', 'packet_valid', 'execution_unknown', 'error_code',
                               'bytes_returned', 'result_status', 'failcode', 'failmessage', 'mapped_base', 'entry_point'):
@@ -259,7 +305,7 @@ class ManualV4:
                 else:
                     state = 'failed'
                 job.update(state=state, finished_at=time.time())
-                job['output'] = f"IOCTL 0x878 · NTSTATUS {status or '미확인'} · failcode {job['failcode'] if job['failcode'] is not None else '미확인'} · Base {job['mapped_base']} · EntryPoint {job['entry_point']}"
+                job['output'] = f"IOCTL 0x878 · NTSTATUS {status or '미확인'} · failcode {job['failcode'] if job['failcode'] is not None else '미확인'} · Base {job['mapped_base']} · EntryPoint {job['entry_point']} · OnlyMapping {str(job['only_mapping']).lower()}"
                 if job['failmessage']:
                     job['output'] += '\n' + job['failmessage']
                 job['error'] = ('' if state == 'mapped' else
@@ -275,6 +321,10 @@ class ManualV4:
                     self._save_job(job)
                 except OSError:
                     job['error'] = '작업 결과 저장 실패. 자동 재요청하지 않습니다.'
+        finally:
+            with self.lock:
+                upload_path = self.jobs.get(key, {}).get('path', '')
+            self.discard_upload(upload_path)
 
     def shutdown(self):
         with self.lock:
@@ -287,6 +337,90 @@ def install(app, studio, manager=None):
     manager = manager or ManualV4(studio)
     router = APIRouter(prefix='/api/manual-v4')
 
+    @router.post('/upload-map')
+    async def upload_map(request: Request):
+        local_request(request)
+        try:
+            pid = int(request.query_params.get('pid', ''), 10)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, '대상 PID를 확인하세요') from exc
+        identity = request.query_params.get('process_start_key', '')
+        filename = request.query_params.get('filename', '')
+        only_mapping_text = request.query_params.get('only_mapping', 'false').lower()
+        if only_mapping_text not in ('true', 'false'):
+            raise HTTPException(400, 'OnlyMapping은 true 또는 false여야 합니다')
+        only_mapping = only_mapping_text == 'true'
+        if (not filename or len(filename) > 255 or filename != filename.strip()
+                or '/' in filename or '\\' in filename or any(ord(char) < 0x20 for char in filename)
+                or not filename.lower().endswith('.dll') or filename.endswith((' ', '.'))):
+            raise HTTPException(400, 'DLL 파일을 선택하세요')
+        try:
+            manager._owner(pid, identity)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        content_length = request.headers.get('content-length')
+        if content_length:
+            try:
+                declared_size = int(content_length, 10)
+            except ValueError as exc:
+                raise HTTPException(400, 'DLL 크기 헤더를 확인하세요') from exc
+            if declared_size < 0:
+                raise HTTPException(400, 'DLL 크기 헤더를 확인하세요')
+            if declared_size > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, 'DLL 파일은 64MiB 이하여야 합니다')
+        temporary = manager.upload_root / (uuid.uuid4().hex + '.part')
+        upload_path = None
+        created_target = False
+        accepted = False
+        total = 0
+        digest = hashlib.sha256()
+        try:
+            with temporary.open('xb') as stream:
+                async for chunk in request.stream():
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > MAX_UPLOAD_BYTES:
+                        raise HTTPException(413, 'DLL 파일은 64MiB 이하여야 합니다')
+                    digest.update(chunk)
+                    stream.write(chunk)
+            if total == 0:
+                raise HTTPException(400, '빈 DLL 파일은 사용할 수 없습니다')
+
+            upload_path = manager.upload_root / (digest.hexdigest() + '.dll')
+            if upload_path.exists():
+                if upload_path.is_symlink() or not upload_path.is_file():
+                    raise HTTPException(400, '업로드 파일 경로를 확인하세요')
+                existing_digest = hashlib.sha256()
+                with upload_path.open('rb') as existing:
+                    for chunk in iter(lambda: existing.read(1024 * 1024), b''):
+                        existing_digest.update(chunk)
+                if upload_path.stat().st_size != total or existing_digest.hexdigest() != digest.hexdigest():
+                    upload_path.unlink()
+                    temporary.replace(upload_path)
+                    created_target = True
+                else:
+                    temporary.unlink(missing_ok=True)
+            else:
+                temporary.replace(upload_path)
+                created_target = True
+
+            result = await asyncio.to_thread(manager.submit, {
+                'pid': pid, 'process_start_key': identity, 'path': str(upload_path),
+                'display_name': filename, 'only_mapping': only_mapping
+            })
+            accepted = True
+            return result
+        except HTTPException:
+            raise
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+            if created_target and not accepted and upload_path is not None:
+                manager.discard_upload(upload_path)
+
     @router.post('/map')
     async def submit(request: Request):
         local_request(request)
@@ -297,9 +431,9 @@ def install(app, studio, manager=None):
             raise HTTPException(400, str(exc)) from exc
 
     @router.get('/jobs')
-    def jobs(request: Request):
+    def jobs(request: Request, include_all: bool = False):
         local_request(request)
-        return manager.list()
+        return manager.list(MAX_JOBS if include_all else 100)
 
     @router.get('/jobs/{key}')
     def job(key: str, request: Request):

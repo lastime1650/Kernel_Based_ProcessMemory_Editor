@@ -1,6 +1,6 @@
 # 📚 문서 · Documentation
 
-**Driver 2.6.0.1 · Kernel Studio 3.2.2 · ManualV4 protocol v3**
+**Driver 2.6.0.2 · Kernel Studio 3.2.3 · ManualV4 protocol v3**
 
 | 지금 찾는 것 | 바로 가기 |
 |---|---|

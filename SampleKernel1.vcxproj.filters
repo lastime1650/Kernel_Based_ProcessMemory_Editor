@@ -32,6 +32,9 @@
     <ClInclude Include="MANUAL_KERNEL.hpp">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="APC.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
     <ClInclude Include="manual_map_protocol.h">
       <Filter>headers</Filter>
     </ClInclude>

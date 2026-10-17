@@ -2,7 +2,7 @@
 
 [Resumen en español](../../README.es.md) · [한국어](../ko/GUIDE.md) · [English](../en/GUIDE.md) · [简体中文](../zh-CN/GUIDE.md)
 
-**Controlador 2.6.0.1 · Kernel Studio 3.2.2 · Windows x64 · ManualV4 ABI v3 / 2104 bytes**
+**Controlador 2.6.0.2 · Kernel Studio 3.2.3 · Windows x64 · ManualV4 ABI v3 / 2104 bytes**
 
 > [!IMPORTANT]
 > Use el controlador y el panel actualizados juntos. El panel muestra la **versión cargada** del dispositivo, no la versión del `.sys` en disco. Compilar y cargar el controlador son comprobaciones distintas.
@@ -34,7 +34,7 @@ python kernel_studio.py
 
 Abra [http://127.0.0.1:8005/](http://127.0.0.1:8005/). `kernel_studio.py` y `server.py` usan **8005** por defecto. `python kernel_studio.py --port 8006` selecciona otro puerto. El servidor solo escucha en loopback; use un worker, ya que la conexión y el estado pertenecen a ese proceso. Detenga el servidor fuente con Ctrl+C.
 
-Para empaquetar, instale PyInstaller en el entorno de compilación y ejecute `tools\build_release.cmd` desde este directorio. La salida va a `dist/3.2.2/KernelStudio` o a un subdirectorio nuevo con fecha/hora si ya existe. Cierre el panel anterior antes de ejecutar el nuevo `KernelStudio.exe`.
+Para empaquetar, instale PyInstaller en el entorno de compilación y ejecute `tools\build_release.cmd` desde este directorio. La salida va a `dist/3.2.3/KernelStudio` o a un subdirectorio nuevo con fecha/hora si ya existe. Cierre el panel anterior antes de ejecutar el nuevo `KernelStudio.exe`.
 
 > [!NOTE]
 > `/api/build` describe el panel en ejecución. `/api/status` informa del controlador conectado. Sustituir archivos no actualiza procesos del panel que siguen abiertos ni el controlador ya cargado.
@@ -52,7 +52,7 @@ Lleve resultados a **메모리 편집** (editor), Watch, estructuras o desensamb
 
 ## 4. Interpretar ManualV4
 
-Seleccione un destino en **ManualV4**, introduzca una ruta absoluta como `C:\DLLs\Example.dll` y pulse **커널 매핑 요청**. El panel valida la identidad antes de enviar la solicitud. Actualizar la página o los trabajos no vuelve a solicitar un mapeo.
+Seleccione un destino y un archivo DLL en **ManualV4** y pulse **커널 매핑 요청**. El panel carga localmente archivos de hasta 64 MiB y valida la identidad del proceso antes de enviar la ruta en caché al kernel. Actualizar la página o los trabajos no vuelve a solicitar un mapeo.
 
 | Resultado | Interpretación |
 |---|---|

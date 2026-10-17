@@ -23,8 +23,8 @@
 //   ⑧  local image → 원격 VA 복사 (attach + ProbeForWrite + RtlCopyMemory)
 //   ⑨  ZwProtectVirtualMemory: 섹션 Characteristics → 페이지 보호 속성
 //   ⑩  ZwFlushInstructionCache
-//   ⑪  39-byte x64 DllMain 트램폴린 stub 작성 → 원격 스레드 생성 →
-//       최대 5초 대기 → 완료 확인 시에만 stub 해제
+//   ⑪  OnlyMapping=FALSE이면 39-byte x64 DllMain stub → 원격 스레드 →
+//       최대 5초 완료 대기; TRUE이면 진입점 호출을 생략하고 매핑 성공 반환
 //  지원 범위: 이미 로드된 의존 DLL만 해결. TLS/delay import는 거부하며,
 //  API-set v6 계약은 대상 PEB.ApiSetMap으로 해석. LDR 등록 및
 //  x64 unwind function-table 등록은 수행하지 않음.
@@ -1881,6 +1881,7 @@ inline NTSTATUS MkmMapDll(
     _In_  PEPROCESS  owner,
     _In_  ULONGLONG  target_pid,
     _In_  PCWSTR     image_path,
+    _In_  BOOLEAN    only_mapping,
     _Out_ ULONGLONG* out_base,
     _Out_ ULONGLONG* out_entry,
     _Out_ ULONG* failcode, PCHAR failmessage = nullptr)
@@ -1979,8 +1980,8 @@ inline NTSTATUS MkmMapDll(
         st = g_MkmFlushCache(proc_h, reinterpret_cast<PVOID>(remote_base), img_sz);
         if (!NT_SUCCESS(st)) { MkmSetFailcode(failcode, MKM_FAIL_MAP_IMAGE_FLUSH, failmessage, "ZwFlushInstructionCache(proc_h=%p, base=0x%llX, size=0x%lX) failed; returned=%s(0x%08lX); DllMain has not been started.", proc_h, remote_base, img_sz, MkmStatusName(st), static_cast<ULONG>(st)); break; }
 
-        // ⑪  DllMain 호출 (entry point가 있을 때만)
-        if (entry_va) {
+        // ⑪  DllMain 호출 (매핑 전용 요청이 아니고 entry point가 있을 때만)
+        if (entry_va && !only_mapping) {
             st = MkmCallDllMain(owner, target, proc_h, remote_base, entry_va, &retain_remote, failcode, failmessage);
             if (st != STATUS_SUCCESS) break;
         }
@@ -2104,9 +2105,17 @@ inline NTSTATUS Request(_In_ PIRP irp, _Out_ ULONG_PTR* returned)
     if (request.Version != MKM_VERSION)
         return MkmReplyFailure(buffer, request, returned, STATUS_INVALID_PARAMETER, MKM_FAIL_REQUEST_VERSION,
             "Manual-map wire protocol version mismatch; actual=%lu; required=%lu; packet_bytes=%llu.", request.Version, MKM_VERSION, static_cast<ULONGLONG>(sizeof(request)));
-    if (request.Reserved)
+    if (request.OnlyMapping > TRUE)
+        return MkmReplyFailure(buffer, request, returned, STATUS_INVALID_PARAMETER, MKM_FAIL_REQUEST_ONLY_MAPPING,
+            "OnlyMapping must be FALSE (0) or TRUE (1); actual=0x%02X.", static_cast<unsigned int>(request.OnlyMapping));
+    ULONG reserved_nonzero = RTL_NUMBER_OF(request.Reserved);
+    for (ULONG i = 0; i < RTL_NUMBER_OF(request.Reserved); ++i) {
+        if (request.Reserved[i]) { reserved_nonzero = i; break; }
+    }
+    if (reserved_nonzero != RTL_NUMBER_OF(request.Reserved))
         return MkmReplyFailure(buffer, request, returned, STATUS_INVALID_PARAMETER, MKM_FAIL_REQUEST_RESERVED,
-            "Reserved request field must be zero; actual=0x%08lX.", request.Reserved);
+            "Reserved request bytes must be zero; first_nonzero_index=%lu; actual=0x%02X.",
+            reserved_nonzero, static_cast<unsigned int>(request.Reserved[reserved_nonzero]));
     if (!request.ProcessId || request.ProcessId > MAXULONG_PTR)
         return MkmReplyFailure(buffer, request, returned, STATUS_INVALID_PARAMETER, MKM_FAIL_REQUEST_PROCESS_ID,
             "Target ProcessId is zero or exceeds ULONG_PTR; actual=0x%llX; maximum=0x%llX.", request.ProcessId, static_cast<ULONGLONG>(MAXULONG_PTR));
@@ -2137,7 +2146,7 @@ inline NTSTATUS Request(_In_ PIRP irp, _Out_ ULONG_PTR* returned)
     // Packed fields are unaligned; helpers only receive naturally aligned output locals.
     ULONGLONG mapped_base = 0, entry_point = 0;
     ULONG failcode = MKM_FAIL_SUCCESS;
-    const NTSTATUS status = MkmMapDll(owner, request.ProcessId, request.ImagePath,
+    const NTSTATUS status = MkmMapDll(owner, request.ProcessId, request.ImagePath, request.OnlyMapping,
         &mapped_base, &entry_point, &failcode, request.failmessage);
     return MkmReply(buffer, request, returned, status, failcode, mapped_base, entry_point, request.failmessage);
 }

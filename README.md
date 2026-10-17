@@ -4,10 +4,10 @@
 
 ### Windows 커널에서 읽고, 작업 공간에서 이해하다.
 
-**프로세스 메모리 · 스캔 · PE/PDB · 스레드 · 커널 매핑 진단**
+**프로세스 · 메모리 · 검색 · 이미지 분석 · 스레드 · 작업 공간**
 
-[![Driver](https://img.shields.io/badge/Driver-2.6.0.1-10b981?style=flat-square)](driver_version.h)
-[![Panel](https://img.shields.io/badge/Panel-3.2.2-38bdf8?style=flat-square)](kernel_control_panel/build_info.py)
+[![Driver](https://img.shields.io/badge/Driver-2.6.0.2-10b981?style=flat-square)](driver_version.h)
+[![Panel](https://img.shields.io/badge/Panel-3.2.3-38bdf8?style=flat-square)](kernel_control_panel/build_info.py)
 [![Platform](https://img.shields.io/badge/Platform-Windows_x64-64748b?style=flat-square)](#quick-start)
 [![Manual ABI](https://img.shields.io/badge/Manual_ABI-v3_%C2%B7_2104_bytes-a78bfa?style=flat-square)](manual_map_protocol.h)
 [![Regression](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml/badge.svg)](https://github.com/lastime1650/Kernel_Based_ProcessMemory_Editor/actions/workflows/regression.yml)
@@ -16,7 +16,7 @@
 
 ![Kernel Studio architecture: local workspace, shared IOCTL contracts, kernel diagnostics](docs/images/project-overview.svg)
 
-[빠른 시작](#quick-start) · [기능 둘러보기](#features) · [구조 이해하기](#architecture) · [실패 진단](#diagnostics) · [개발 문서](#documentation)
+[빠른 시작](#quick-start) · [네비게이션별 기능](#features) · [구조](#architecture) · [개발 문서](#documentation)
 
 </div>
 
@@ -25,21 +25,44 @@
 SampleKernel1 드라이버와 한국어 로컬 웹 패널을 함께 제공하는 Windows 프로세스 메모리 분석·편집 프로젝트입니다. Python 브리지가 공유 IOCTL 계약으로 드라이버와 통신하고, 반환된 바이트를 스캔·PE/PDB·디스어셈블리·비교·복구 작업으로 연결합니다.
 
 > [!IMPORTANT]
-> **현재 기준: 드라이버 `2.6.0.1` / 패널 `3.2.2` / 빌드 `20261012`.** ManualV4는 패킷 **v3 · 2104바이트**를 사용합니다. 이전 v1/v2 패널과 호환되지 않습니다. 화면의 드라이버 버전은 실제 로드된 장치가 응답한 버전입니다.
+> **현재 기준: 드라이버 `2.6.0.2` / 패널 `3.2.3` / 빌드 `20261017`.** ManualV4는 패킷 **v3 · 2104바이트**를 사용합니다. 이전 v1/v2 패널과 호환되지 않습니다. 화면의 드라이버 버전은 실제 로드된 장치가 응답한 버전입니다.
 
 <a id="features"></a>
 
-## 🧭 무엇을 할 수 있나요?
+## 🧭 네비게이션별 기능 안내
 
-| 작업 공간 | 하는 일 | 이어지는 작업 |
-|:--|:--|:--|
-| 🔎 **메모리 스캔** | 값·AOB·문자열·Unknown/Next 검색, 후보 필터링 | 주소를 Hex / Watch / 분석 도구로 전달 |
-| 🧩 **메모리 편집** | 형식별 읽기·쓰기, 포인터 체인, Wide View, 할당·보호 | 원본 확인 → 패치 → 비교·복구 |
-| 🗂️ **이미지 분석** | PE 섹션·IAT·export, 모듈·함수 주소, 선택 PDB | 디스어셈블리·CFG·함수 분석 |
-| 🧵 **스레드 도구** | 일반 레지스터 조회·편집, 하드웨어 중단점 | 컨텍스트 검증, 캡처·복원 정보 |
-| 🏗️ **EPROCESS / 콜백** | 프로세스 객체 읽기·구조 탐색, 콜백 상태·등록·해제 | 빌드별 preset·범위·필드 확인 |
-| 📦 **덤프 / 생산성** | 범위·MEM_IMAGE 덤프, 스냅샷·저널·시나리오·작업 큐 | manifest·SHA256, 취소·이어쓰기 |
-| 🩺 **ManualV4** | PID와 디스크 DLL 경로를 커널에 전달 | NTSTATUS + failcode + failmessage |
+아래 항목은 패널 사이드바 순서에 맞춰 각 화면의 역할을 하나씩 정리했습니다. 메뉴 이름은 실제 한국어 UI와 같습니다.
+
+| 네비게이션 | 기능 |
+|---|---|
+| **대시보드** | 드라이버 연결 상태, 선택한 대상, 최근 작업을 한눈에 확인합니다. |
+| **구조체 / 클래스** | 사용자 정의 메모리 구조의 필드와 오프셋을 정의하고 읽습니다. |
+| **프로젝트 작업 공간** | 분석 설정과 주소, 스캔 상태를 프로젝트로 보관하고 복구합니다. |
+| **변경 기록 / 묶음** | 변경 항목을 묶어 메모와 함께 기록하고 다시 살펴봅니다. |
+| **변화 타임라인** | 선택한 값과 바이트를 시간에 따라 기록하고 두 시점을 비교합니다. |
+| **프로세스 / 권한** | 프로세스 정보와 토큰·핸들·관련 스레드를 조회합니다. |
+| **EPROCESS 구조체** | 버전별 레이아웃을 기준으로 커널 프로세스 객체의 필드를 살펴봅니다. |
+| **메모리 편집** | 선택한 주소를 여러 데이터 형식과 바이트 단위로 읽고 편집합니다. |
+| **읽기 / 쓰기 / 덤프** | 주소 범위의 원시 메모리 요청과 바이트 덤프를 수행합니다. |
+| **메모리 할당** | 대상 프로세스의 메모리 영역을 할당하고 결과 주소를 확인합니다. |
+| **메모리 관리** | 할당·해제·보호·복사·채우기와 메모리 스냅샷을 관리합니다. |
+| **메모리 스캔** | 값·패턴·AOB·문자열 검색으로 후보 주소를 좁힙니다. |
+| **Watch / 값 고정** | 관심 주소의 값을 추적하고 필요할 때 고정하거나 해제합니다. |
+| **모듈 / PE / 주소** | 모듈·영역, PE 섹션·Import·Export와 주소 소속을 확인합니다. |
+| **메모리 / 이미지 덤프** | 메모리 범위나 이미지 단위 덤프의 진행 상태와 결과를 확인합니다. |
+| **메모리 맵 변화** | 메모리 영역 표본을 저장하고 시간에 따른 차이를 비교합니다. |
+| **스레드 / 레지스터** | 스레드와 일반 레지스터를 조회하고 컨텍스트·우선순위 등을 관리합니다. |
+| **APC_NORMALIZE** | 선택한 스레드에 User APC 루틴, 컨텍스트와 두 시스템 인자를 요청합니다. |
+| **하드웨어 중단점** | 스레드 하드웨어 중단점을 설정·조회·삭제합니다. |
+| **스냅샷 / 패치 / 분석** | 스냅샷 비교·복구, 패치 미리보기·적용·되돌리기와 포인터·구조 분석을 제공합니다. |
+| **디스어셈블리** | 메모리의 x86/x64 명령을 표시하고 제어 흐름을 분석합니다. |
+| **DLL / 이미지 함수** | 이미지 Export·함수와 PDB 정보를 연결해 함수 주소와 상세를 살펴봅니다. |
+| **ManualV4** | DLL을 선택해 커널 매핑을 요청하고, 매핑만 수행 옵션과 커널 결과를 확인합니다. |
+| **ManualV4_Viewer** | 성공한 매핑의 시작 주소를 검증한 뒤 PDB 함수 주소와 매개변수를 분석합니다. |
+| **ObRegisterCallback Panel** | 드라이버 전역 Object Callback의 상태를 확인하고 등록·해제합니다. |
+| **작업 큐 / 시나리오** | JSON 시나리오와 묶음 요청을 큐에 넣고 진행 결과를 확인합니다. |
+| **호출 이력 / 기능** | 드라이버 상태와 추적된 함수 호출의 결과를 살펴봅니다. |
+| **메모리 Wide View (Beta)** | 메모리 맵과 주변 바이트·관측 변화를 넓은 화면으로 탐색합니다. |
 
 **기술 스택:** C++ / WDK · Python / FastAPI · HTML / JavaScript · NumPy · Capstone · Keystone · DIA
 
@@ -49,7 +72,7 @@ SampleKernel1 드라이버와 한국어 로컬 웹 패널을 함께 제공하는
 <details>
 <summary><strong>📷 실제 화면 보기 — 기존 버전의 UI 참고 이미지</strong></summary>
 
-아래 이미지는 이전 버전에서 촬영했습니다. 현재 화면·검증 결과로 취급하지 마세요. 최신 항목에는 ManualV4, EPROCESS, 콜백 도구 등이 추가되어 있습니다.
+아래 이미지는 이전 UI를 촬영한 참고 자료이며 현재 화면 구성이나 검증 결과를 나타내지 않습니다.
 
 | 메모리 편집 | 메모리 스캔 |
 |:--:|:--:|
@@ -107,7 +130,7 @@ python -m pip install pyinstaller
 .\tools\build_release.cmd
 ```
 
-새 출력은 `dist/3.2.2/KernelStudio/KernelStudio.exe`에 생성됩니다. 같은 버전 폴더가 있으면 그 아래 새 `build-<timestamp>` 폴더를 사용합니다. 실행 중인 기존 배포 폴더와 사용자 데이터는 보존합니다. 패키징은 드라이버 설치·로드를 수행하지 않습니다.
+새 출력은 `dist/3.2.3/KernelStudio/KernelStudio.exe`에 생성됩니다. 같은 버전 폴더가 있으면 그 아래 새 `build-<timestamp>` 폴더를 사용합니다. 실행 중인 기존 배포 폴더와 사용자 데이터는 보존합니다. 패키징은 드라이버 설치·로드를 수행하지 않습니다.
 
 </details>
 
@@ -123,7 +146,7 @@ flowchart TB
     UI["브라우저 작업 공간<br/>읽기 · 스캔 · 분석 · 편집"] --> API["FastAPI<br/>server.py / studio_api.py"]
     API --> Jobs["작업 관리 · 요청 스케줄러"]
     Jobs --> Bridge["Python / ctypes 브리지"]
-    Bridge <-->|"공유 ABI · 43 IOCTL 계약"| Driver["SampleKernel1 드라이버"]
+    Bridge <-->|"공유 ABI · 44 IOCTL 계약"| Driver["SampleKernel1 드라이버"]
     Driver <-->|"메모리 · 이미지 · 스레드"| Target["대상 프로세스"]
     API --> Analysis["PE / PDB / Capstone / NumPy"]
     API --> Store["작업 파일 · JSON · SQLite"]
@@ -150,47 +173,6 @@ flowchart LR
 
 > [!IMPORTANT]
 > 여러 요청으로 읽은 데이터는 한 시점의 원자적 스냅샷이 아닙니다. 이미지 덤프는 메모리의 RVA 배치이며 디스크 PE를 복원한 실행 파일이 아닙니다. 읽지 못해 **0으로 채운 구간은 원본 데이터가 아닙니다.**
-
-<a id="diagnostics"></a>
-
-## 🩺 ManualV4: “실패했습니다”에서 한 걸음 더
-
-**대상 선택 → DLL 절대 경로 입력 → 커널 매핑 요청 → 결과 확인.**
-
-| 결과 필드 | 답하는 질문 | 읽는 방법 |
-|:--|:--|:--|
-| `ResultStatus` | 작업이 어떤 상태로 끝났나? | NTSTATUS 이름과 16진수 |
-| `ULONG failcode` | 어디에서 실패했나? | `0`은 성공, `1..137`은 고유 실패 위치 |
-| `char failmessage[1024]` | 그 지점에서 무엇을 관찰했나? | API·인자·주소·크기·상태와 진단 조회 |
-| `MappedBase` / `EntryPoint` | 어떤 주소가 반환됐나? | 64비트 정밀도의 16진수 문자열 |
-
-```mermaid
-flowchart LR
-    Q["IOCTL 0x878<br/>v3 / 2104 bytes"] --> Map["커널 매핑"]
-    Map --> Result{"작업 결과"}
-    Result -->|"SUCCESS"| Good["failcode = 0<br/>failmessage = 빈 문자열"]
-    Result -->|"실패"| Bad["최초 실패 번호 + 관측 정보<br/>상태 / API / 인자 / 조회 결과"]
-    Good --> Panel["ManualV4 작업 결과"]
-    Bad --> Panel
-```
-
-예를 들어 `119`는 섹션의 `ZwProtectVirtualMemory` 실패입니다. 메시지는 요청 주소·크기·보호 값, 섹션 정보와 NTSTATUS를 담습니다. `117 / 118 / 119 / 123`에는 보호 API 직전의 아래 조회 결과도 포함됩니다.
-
-| 진단 | 포함하는 관측값 |
-|:--|:--|
-| `pre_page` | 첫 영역의 State · Type · Protect · AllocationProtect · 주소 · 크기 · 요청 범위 포함 여부 |
-| `pre_dynamic` | 동적 코드 정책의 원시 Flags와 4개 정책 비트 |
-| `pre_protection` | 보호 레벨 · Type · Audit · Signer |
-
-> [!NOTE]
-> 조회는 **읽기 전용 진단**이며 매핑 알고리즘이나 요청 보호 값을 바꾸지 않습니다. 조회 불가·미지원·잘못된 응답은 `UNAVAILABLE`이며, “정책이 꺼짐”으로 해석하지 않습니다. 페이지 조회는 첫 영역과 해당 시점을 설명합니다.
-
-> [!IMPORTANT]
-> **IOCTL 전송 성공 ≠ DLL 매핑 성공.** 패널은 유효한 응답과 `ResultStatus == 0`, 유효한 Base를 확인합니다. 전송·응답이 불확실하면 진단은 `null`/미확인이며 자동 재매핑하지 않습니다. `ACCESS_DENIED` 하나만으로 내부 거절 원인을 확정할 수는 없습니다.
-
-메시지는 ANSI에서 동일하게 해석되는 ASCII 영문·숫자를 사용합니다. 최대 1023바이트와 NUL 종료이며 초과 시 ` [truncated]`를 표시합니다. 최초 실패 진단은 정리 과정에서도 유지합니다. **failcode는 현장 번호, failmessage는 현장 메모입니다. 추리 소설의 범인 발표는 아닙니다.**
-
-→ [공유 프로토콜과 실패 위치](manual_map_protocol.h) · [커널 구현](MANUAL_KERNEL.hpp) · [ABI 상세](docs/reference/API_ABI.md)
 
 ## 🧪 검증과 재현
 

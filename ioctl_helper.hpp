@@ -5,6 +5,7 @@
 #include "driver_version.h"
 #include "MANUAL_KERNEL.hpp"
 #include "ob_callbacks.hpp"
+#include "APC.hpp"
 #include "helper/process_object_layouts.h"
 #include <stddef.h>
 
@@ -169,6 +170,9 @@ namespace helper
 
 #define IOCTL_HELPER_READ_PROCESS_OBJECT \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x826, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_HELPER_REGISTER_USER_APC \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
 
 #define PROCESS_OBJECT_SNAPSHOT_VERSION 1UL
 #define PROCESS_OBJECT_SNAPSHOT_MAX_SIZE 4096UL
@@ -964,6 +968,26 @@ namespace helper
         static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, EprocessAddress) == 40, "snapshot address offset");
         static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, ProcessStartKey) == 48, "snapshot start-key offset");
         static_assert(offsetof(READ_PROCESS_OBJECT_REQUEST, Data) == 56, "snapshot data offset");
+
+        // ============================================================
+        // 0x900: REGISTER USER APC
+        // ============================================================
+
+#pragma pack(push, 8)
+        typedef struct _REGISTER_USER_APC_REQUEST
+        {
+            ULONG ProcessId;
+            ULONG ThreadId;
+            ULONGLONG UserApcFunction;
+            ULONGLONG NormalContext;
+            ULONGLONG NormalSystemParameter1;
+            ULONGLONG NormalSystemParameter2;
+            NTSTATUS ResultStatus;
+        } REGISTER_USER_APC_REQUEST, *PREGISTER_USER_APC_REQUEST;
+#pragma pack(pop)
+
+        static_assert(sizeof(REGISTER_USER_APC_REQUEST) == 48, "user-APC request ABI");
+        static_assert(offsetof(REGISTER_USER_APC_REQUEST, ResultStatus) == 40, "user-APC status offset");
 
         // The PID lookup pins this allocation only for the copy. Fields may
         // still change during a snapshot; no EPROCESS-internal lock is held.
@@ -3898,6 +3922,25 @@ namespace helper
                 else
                 {
                     request->ResultStatus = helper::remote_call::Release(stack->FileObject, request);
+                    information = sizeof(*request);
+                    status = STATUS_SUCCESS;
+                }
+            }
+
+            else if (ioctl_code == IOCTL_HELPER_REGISTER_USER_APC)
+            {
+                auto request = GetPacket<REGISTER_USER_APC_REQUEST>(irp, stack);
+                if (!request) status = STATUS_BUFFER_TOO_SMALL;
+                else
+                {
+                    request->ResultStatus = RegisterUserApc(
+                        reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(request->ProcessId)),
+                        reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(request->ThreadId)),
+                        reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(request->UserApcFunction)),
+                        reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(request->NormalContext)),
+                        reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(request->NormalSystemParameter1)),
+                        reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(request->NormalSystemParameter2))
+                    );
                     information = sizeof(*request);
                     status = STATUS_SUCCESS;
                 }

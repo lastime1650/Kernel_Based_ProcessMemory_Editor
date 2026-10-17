@@ -126,8 +126,8 @@ class ReleaseRegressions(unittest.TestCase):
         from server import app
         from test_asgi_client import ASGIClient
         r=ASGIClient(app).get('/api/build').json()
-        self.assertEqual(r['panel_version'],'3.2.2')
-        self.assertEqual(r['release_id'],'SampleKernel1-2.6.0.1_KernelStudio-3.2.2_ManualV4')
+        self.assertEqual(r['panel_version'],'3.2.3')
+        self.assertEqual(r['release_id'],'SampleKernel1-2.6.0.2_KernelStudio-3.2.3_APCNormalize')
         self.assertEqual(r['expected_driver_version'],'2.6')
         self.assertEqual(r['default_port'],8005)
 

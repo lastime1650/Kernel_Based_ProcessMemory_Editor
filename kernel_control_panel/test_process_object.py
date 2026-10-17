@@ -118,7 +118,7 @@ class ProcessObjectTests(unittest.TestCase):
         self.assertEqual(caps['manual_map']['failcode'], {'success':0, 'field':'failcode', 'unknown':None})
         self.assertEqual(caps['manual_map']['failmessage'], {'field':'failmessage', 'bytes':1024,
                          'encoding':'ascii', 'success':'', 'unknown':None})
-        self.assertEqual(client.get('/api/build').json()['expected_driver_build'], 20261012)
+        self.assertEqual(client.get('/api/build').json()['expected_driver_build'], 20261017)
         with patch.object(server.driver, 'query_process_info', return_value={'success': True, 'exit_status': 259,
                           'process_id': 42, 'process_start_key': START_KEY}), \
                 patch.object(server.driver, 'query_process_extended', return_value={'success': True, 'create_time': START_KEY}), \

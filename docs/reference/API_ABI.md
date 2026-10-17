@@ -2,14 +2,14 @@
 
 [문서 홈](../README.md) · [소스 지도](../SOURCE_MAP.md) · [검증](../VALIDATION.md)
 
-**Driver 2.6.0.1 · Kernel Studio 3.2.2**
+**Driver 2.6.0.2 · Kernel Studio 3.2.3**
 
 | 현재 소스에서 확인한 목록 | 수 |
 |---|---:|
-| HTTP / WebSocket route decorators | **82** |
-| IOCTL identifiers | **43** |
-| 직접 정의된 ctypes wire layouts¹ | **46** |
-| 위 layouts의 직접 fields¹ | **355** |
+| HTTP / WebSocket route decorators | **83** |
+| IOCTL identifiers | **44** |
+| 직접 정의된 ctypes wire layouts¹ | **47** |
+| 위 layouts의 직접 fields¹ | **362** |
 
 ¹ `driver_bridge.py`, `manual_map_protocol.py`, `ob_callbacks_protocol.py` 기준입니다. 중첩 보조 구조와 별도의 HWBP ring 데이터는 포함하지 않습니다.
 
@@ -28,13 +28,14 @@
 | Field | Offset | Bytes | 계약 |
 |---|---:|---:|---|
 | `Version` | 0 | 4 | 입력 3 |
-| `Reserved` | 4 | 4 | 입력 0 |
+| `OnlyMapping` | 4 | 1 | 입력 BOOLEAN; 1이면 DLL 진입점 호출을 생략 |
+| `Reserved` | 5 | 3 | 입력 모두 0 |
 | `ProcessId` | 8 | 8 | 대상 PID |
 | `ImagePath` | 16 | 1040 | NUL 종료 NT disk path, WCHAR 520개 |
 | `ResultStatus` | 1056 | 4 | 작업 NTSTATUS |
 | `MappedBase` | 1060 | 8 | 입력 0; 응답 이미지 기준 주소 |
 | `EntryPoint` | 1068 | 8 | 입력 0; 응답 진입점 |
-| `failcode` | **1076** | 4 | 입력 0; 성공 0, 실패 위치 1–137 |
+| `failcode` | **1076** | 4 | 입력 0; 성공 0, 실패 위치 1–138 |
 | `failmessage` | **1080** | **1024** | 입력 모두 0; 실패 ANSI 호환 문자열 |
 
 ### 실패 문자열의 계약
@@ -57,6 +58,7 @@
 | **117 / 118 / 119** | **전체 이미지 / headers / section 보호 적용** |
 | 120–136 | DllMain 준비·스레드·관찰·정리 (`123`: stub 보호) |
 | 137 | 최종 실패 fallback |
+| 138 | `OnlyMapping` 요청 값 검증 |
 
 - 커널 출력은 ASCII 기반으로 ANSI 호환성을 유지합니다. 최대 **1023 bytes + NUL**이고 NUL 뒤 남은 bytes는 모두 0입니다.
 - 성공이면 `ResultStatus=0`, `failcode=0`, `failmessage` 전체가 0입니다. 실패면 첫 코드와 메시지를 보존하고 최종 operation status를 추가할 수 있습니다.
@@ -151,6 +153,7 @@ Function ID와 완성된 IOCTL 값을 구분하세요. `0x878`과 `0x0022E1E0`�
 | `0x828` | `0x0022E0A0` | `IOCTL_HELPER_REGISTER_OB_CALLBACKS` | Ob observer V2 explicit control |
 | `0x829` | `0x0022E0A4` | `IOCTL_HELPER_UNREGISTER_OB_CALLBACKS` | Ob observer V2 explicit control |
 | `0x878` | `0x0022E1E0` | `IOCTL_MANUAL_MAP` | ManualV4 v3 |
+| `0x900` | `0x0022E400` | `IOCTL_HELPER_REGISTER_USER_APC` | APC_NORMALIZE thread request |
 
 ## 특수 패킷과 수명
 
@@ -163,6 +166,7 @@ Function ID와 완성된 IOCTL 값을 구분하세요. `0x878`과 `0x0022E1E0`�
 | `RELEASE_FUNCTION_CALL_REQUEST` | v1 / pack=8 | 24 | 추적 참조 해제; 스레드를 종료하지 않음 |
 | `OB_CALLBACKS_STATUS_REQUEST` (Python) | v2 / pack=8 | 216 | observer 상태·등록 실패·altitude·generation |
 | `OB_CALLBACKS_CONTROL_REQUEST` | v2 / pack=8 | 32 | 명시적 register / unregister |
+| `REGISTER_USER_APC_REQUEST` | pack=8 | 48 | PID/TID + User APC routine/arguments + NTSTATUS |
 
 Ob C++ 상태 이름은 `OB_CALLBACK_STATUS_REQUEST`입니다. query의 `ResultStatus`와 등록 작업의 `RegistrationStatus`는 별개입니다. register 요청 수락은 완료와 다르므로 후속 status에서 상태를 확인합니다. observer는 핸들 권한 변경용 필터가 아니라 관찰 경로입니다.
 
@@ -172,8 +176,21 @@ Ob C++ 상태 이름은 `OB_CALLBACK_STATUS_REQUEST`입니다. query의 `ResultS
 
 아래는 Windows x64에서 계산한 크기입니다. 각 링크에 전체 field 순서·타입이 있습니다. `MANUAL_MAP_REQUEST`의 pack=1을 다른 pack=8 요청과 혼동하지 마세요.
 
+| `REGISTER_USER_APC_REQUEST` field | Offset | Bytes | 계약 |
+|---|---:|---:|---|
+| `ProcessId` | 0 | 4 | Attached Process Id |
+| `ThreadId` | 4 | 4 | Selected Thread Id |
+| `UserApcFunction` | 8 | 8 | Normalize_Address |
+| `NormalContext` | 16 | 8 | Normalize_Context |
+| `NormalSystemParameter1` | 24 | 8 | SystemBuffer 1 |
+| `NormalSystemParameter2` | 32 | 8 | SystemBuffer 2 |
+| `ResultStatus` | 40 | 4 | APC 큐 등록 결과 NTSTATUS; total 48 bytes |
+
+`IOCTL_HELPER_REGISTER_USER_APC`는 Function `0x900`, full IOCTL `0x0022E400`, `METHOD_BUFFERED`, read/write access입니다. 패널은 `GET /api/process/{pid}/threads`로 최대 64개 스레드를 채우고 선택된 행의 PID/TID와 4개 64-bit 값을 `POST /api/apc/normalize`에 전송합니다. 성공은 전송 성공, 정확한 48-byte echo, 성공 NTSTATUS를 모두 만족할 때만 반환합니다.
+
 | Layout | Bytes | Pack | Fields | Source |
 |---|---:|---:|---:|---|
+| `REGISTER_USER_APC_REQUEST` | 48 | 8 | 7 | [driver_bridge.py](../../kernel_control_panel/driver_bridge.py#L122) |
 | `QUERY_PROCESS_OBJECT_REQUEST` | 24 | 8 | 4 | [driver_bridge.py](../../kernel_control_panel/driver_bridge.py#L96) |
 | `READ_PROCESS_OBJECT_REQUEST` | 4152 | 8 | 11 | [driver_bridge.py](../../kernel_control_panel/driver_bridge.py#L107) |
 | `CREATE_FUNCTION_CALL_REQUEST` | 88 | 8 | 17 | [driver_bridge.py](../../kernel_control_panel/driver_bridge.py#L120) |
@@ -229,6 +246,7 @@ Ob C++ 상태 이름은 `OB_CALLBACK_STATUS_REQUEST`입니다. query의 `ResultS
 |---|---|---|
 | GET | `/` | [read_root](../../kernel_control_panel/server.py#L715) |
 | GET | `/api/build` | [get_build](../../kernel_control_panel/server.py#L37) |
+| POST | `/api/apc/normalize` | [register_apc_normalize](../../kernel_control_panel/server.py#L344) |
 | POST | `/api/dll/register` | [register_dll](../../kernel_control_panel/server.py#L678) |
 | GET | `/api/hwbp/query/{pid}` | [query_hwbp](../../kernel_control_panel/server.py#L659) |
 | POST | `/api/hwbp/remove` | [remove_hwbp](../../kernel_control_panel/server.py#L664) |
@@ -310,4 +328,4 @@ Ob C++ 상태 이름은 `OB_CALLBACK_STATUS_REQUEST`입니다. query의 `ResultS
 | POST | `/api/watch/update` | [update_watch_item](../../kernel_control_panel/server.py#L589) |
 | WEBSOCKET | `/ws/events` | [websocket_events_endpoint](../../kernel_control_panel/server.py#L690) |
 
-**English:** This reference is derived from the current sources: **43 IOCTL identifiers**, **82 route decorators**, and **46 direct ctypes layouts / 355 fields** in the three wire-contract modules. ManualV4 uses **v3, pack=1, 2104 bytes**, with `failcode` at **1076** and a **1024-byte** `failmessage` at **1080**. Transport success, packet validity and operation success are distinct; malformed or uncertain responses never become successful mapping results. Protection diagnostics record read-only observations and do not establish a policy cause.
+**English:** This reference is derived from the current sources: **44 IOCTL identifiers**, **83 route decorators**, and **47 direct ctypes layouts / 362 fields** in the three wire-contract modules. ManualV4 uses **v3, pack=1, 2104 bytes**, with `failcode` at **1076** and a **1024-byte** `failmessage` at **1080**. Transport success, packet validity and operation success are distinct; malformed or uncertain responses never become successful mapping results. Protection diagnostics record read-only observations and do not establish a policy cause.

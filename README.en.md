@@ -5,8 +5,8 @@
 **SampleKernel1 · Kernel Studio**<br>
 A local workspace for Windows process memory, backed by a kernel driver.
 
-![Driver 2.6.0.1](https://img.shields.io/badge/Driver-2.6.0.1-2563eb)
-![Panel 3.2.2](https://img.shields.io/badge/Kernel_Studio-3.2.2-7c3aed)
+![Driver 2.6.0.2](https://img.shields.io/badge/Driver-2.6.0.2-2563eb)
+![Panel 3.2.3](https://img.shields.io/badge/Kernel_Studio-3.2.3-7c3aed)
 ![Manual ABI v3 2104 bytes](https://img.shields.io/badge/Manual_ABI-v3_%C2%B7_2104_bytes-0f766e)
 ![Windows x64](https://img.shields.io/badge/Platform-Windows_x64-334155)
 
@@ -14,28 +14,49 @@ A local workspace for Windows process memory, backed by a kernel driver.
 
 ![Project overview: browser, local panel, IOCTL bridge and kernel driver](docs/images/project-overview.svg)
 
-[Quick start](#quick-start) · [ManualV4 diagnostics](#manualv4-diagnostics) · [User guide](docs/en/GUIDE.md) · [API / ABI](docs/reference/API_ABI.md)
+[Quick start](#quick-start) · [Features by navigation](#features) · [User guide](docs/en/GUIDE.md) · [API / ABI](docs/reference/API_ABI.md)
 
 </div>
 
 > [!IMPORTANT]
-> This source update pairs **driver 2.6.0.1** with **panel 3.2.2**. ManualV4 uses **packet v3, 2104 bytes**; v1/v2 clients are incompatible. Rebuilding a `.sys` does not replace the driver already loaded in Windows.
+> This source update pairs **driver 2.6.0.2** with **panel 3.2.3**. ManualV4 uses **packet v3, 2104 bytes**; v1/v2 clients are incompatible. Rebuilding a `.sys` does not replace the driver already loaded in Windows.
 
-## A workbench, not a wall of hex
+<a id="features"></a>
 
-Choose a process, inspect its memory, narrow scan candidates, and move an address into the editor, Watch, PE tools or disassembly. Kernel Studio brings those workflows together in a local browser UI.
+## Navigation, one workspace at a time
 
-The UI remains **Korean**. These translated documents explain the same source and controls; they do not imply a translated application.
+The list follows the panel sidebar. Korean labels in parentheses match the application UI.
 
-| Workspace | What it provides |
+| Navigation | What it does |
 |---|---|
-| Memory editor / management | Typed reads and writes, byte editing, allocation, protection, copy and fill |
-| Scan / Watch | New → Next scans, AOB and strings, SQLite candidates, saved addresses and value freeze |
-| Images / PE | Modules, sections, imports/IAT, exports, address ownership and optional PDB symbols |
-| Disassembly / structures | x86/x64 instructions, CFG, patch preview, pointer chains and user-defined fields |
-| Threads / breakpoints | General registers, suspend/resume, priorities and hardware breakpoint management |
-| Dumps / projects | Large range and mapped-image dumps, progress/cancel, manifests and recovery records |
-| ManualV4 | Kernel DLL mapping with operation status, failure location and detailed diagnostics |
+| **대시보드 (Dashboard)** | Check driver connection, selected target and recent workspace status. |
+| **구조체 / 클래스 (Structures / Classes)** | Define and inspect fields and offsets for user-defined memory layouts. |
+| **프로젝트 작업 공간 (Project Workspace)** | Save and restore analysis settings, addresses and scan state as projects. |
+| **변경 기록 / 묶음 (Change Log / Bundles)** | Group change items, add notes and review them later. |
+| **변화 타임라인 (Change Timeline)** | Sample selected values and bytes over time, then compare two observations. |
+| **프로세스 / 권한 (Processes / Access)** | Inspect process details, tokens, handles and related threads. |
+| **EPROCESS 구조체 (EPROCESS Structure)** | Explore kernel process-object fields using versioned layouts. |
+| **메모리 편집 (Memory Editor)** | Read and edit a selected address using typed values or individual bytes. |
+| **읽기 / 쓰기 / 덤프 (Read / Write / Dump)** | Issue raw memory requests and dump bytes from an address range. |
+| **메모리 할당 (Memory Allocation)** | Allocate a memory region in the selected process and inspect its address. |
+| **메모리 관리 (Memory Management)** | Manage allocation, release, protection, copy, fill and memory snapshots. |
+| **메모리 스캔 (Memory Scan)** | Narrow candidate addresses with value, pattern, AOB and string searches. |
+| **Watch / 값 고정 (Watch / Freeze)** | Track watched addresses and freeze or unfreeze their values. |
+| **모듈 / PE / 주소 (Modules / PE / Address)** | Inspect modules, regions, PE sections, imports, exports and address ownership. |
+| **메모리 / 이미지 덤프 (Memory / Image Dumps)** | Review progress and results for range and image dumps. |
+| **메모리 맵 변화 (Memory Map Changes)** | Capture memory-region maps and compare observations over time. |
+| **스레드 / 레지스터 (Threads / Registers)** | Inspect threads and general registers; manage context, priority and related controls. |
+| **APC_NORMALIZE** | Request a user APC routine for a selected thread with its context and two system arguments. |
+| **하드웨어 중단점 (Hardware Breakpoints)** | Set, query and remove per-thread hardware breakpoints. |
+| **스냅샷 / 패치 / 분석 (Snapshots / Patches / Analysis)** | Compare and restore snapshots, preview/apply/undo patches, and inspect pointers or structures. |
+| **디스어셈블리 (Disassembly)** | Display x86/x64 instructions from memory and inspect control flow. |
+| **DLL / 이미지 함수 (DLL / Image Functions)** | Connect image exports and PDB symbols to function addresses and details. |
+| **ManualV4** | Request kernel DLL mapping, optionally skip DllMain, and inspect the kernel result. |
+| **ManualV4_Viewer** | Validate a successful mapping base, then inspect PDB function addresses and parameters. |
+| **ObRegisterCallback Panel** | Inspect, register and unregister the driver-wide Object Callback. |
+| **작업 큐 / 시나리오 (Job Queue / Scenarios)** | Queue JSON scenarios and grouped requests, then review their progress. |
+| **호출 이력 / 기능 (Call History / Capabilities)** | Review driver status and results from tracked function calls. |
+| **메모리 Wide View (Beta) (Memory Wide View)** | Explore the memory map, nearby bytes and observed changes in a wide view. |
 
 > [!TIP]
 > “It is probably the right address” is a brave debugging strategy. Preview the bytes and check the selected process first; your future self already has enough tabs open.
@@ -54,7 +75,7 @@ flowchart LR
 
 Target reads, writes and memory-region queries use the driver. User mode compares returned bytes, manages scan candidates and parses PE/instructions. The device connection uses `CreateFileW`, `DeviceIoControl` and `CloseHandle`.
 
-**43 request contracts** cover `0x800`–`0x829` and ManualV4 `0x878`. The complete inventory belongs in the [API / ABI reference](docs/reference/API_ABI.md), where structure details are easier to find than in a scrolling marathon.
+**44 request contracts** cover `0x800`–`0x829`, ManualV4 `0x878`, and APC_NORMALIZE `0x900`. The complete inventory belongs in the [API / ABI reference](docs/reference/API_ABI.md), where structure details are easier to find than in a scrolling marathon.
 
 ## A glimpse of the workspace
 
@@ -62,7 +83,7 @@ Target reads, writes and memory-region queries use the driver. User mode compare
 |---|---|
 | ![Historical memory editor UI](docs/images/02-memory-editor.jpg) | ![Historical memory scan UI](docs/images/03-memory-scan.jpg) |
 
-*Historical screenshots from 2026-10-05–06, captured before choosing a target. They illustrate the existing UI and do not show the new 3.2.2 ManualV4 diagnostics. See [image provenance](docs/images/README.md).*
+*Historical screenshots from 2026-10-05–06, captured before choosing a target. They are UI references, not a complete view of the current navigation or validation results. See [image provenance](docs/images/README.md).*
 
 ## Quick start
 
@@ -96,45 +117,7 @@ Open **[http://127.0.0.1:8005/](http://127.0.0.1:8005/)**. `python server.py` us
 > [!NOTE]
 > Process discovery probes PID ranges through the existing kernel query contract. It is not complete system-wide enumeration. Expand the range or enter a PID manually when a process is missing.
 
-To package the panel, activate the build environment, install PyInstaller and run `tools\build_release.cmd` inside `kernel_control_panel`. It writes to a fresh `dist/3.2.2/KernelStudio` directory, or a new timestamped child when that version directory exists, preserving earlier packages and data.
-
-## ManualV4 diagnostics
-
-Enter a disk DLL's absolute path, such as `C:\DLLs\Example.dll`, in **ManualV4**. The panel checks process identity immediately before submitting the PID and path to the kernel.
-
-```mermaid
-flowchart LR
-    Request["PID + disk DLL path"] --> Kernel["IOCTL 0x878 · v3"]
-    Kernel --> Result{"Validated response?"}
-    Result -- Yes --> Status["NTSTATUS + failcode + failmessage"]
-    Result -- No --> Unknown["Indeterminate · no automatic retry"]
-    Status --> UI["Job details + saved history"]
-```
-
-| Field | Meaning |
-|---|---|
-| `ResultStatus` / NTSTATUS | The kernel operation's returned status |
-| `failcode` | `0` for success; a positive value identifies a failure branch |
-| `failmessage[1024]` | ANSI diagnostics: at most 1023 ASCII bytes, NUL terminated, zero-filled tail |
-| `MappedBase` / `EntryPoint` | Returned image base and entry point; shown as hexadecimal strings |
-
-The packet layout is defined once in [manual_map_protocol.h](manual_map_protocol.h): `failcode` is at offset **1076**, and `failmessage` at **1080**. The first failure diagnosis is retained even when cleanup changes the final operation status. Long messages end in `[truncated]`.
-
-For example, **failcode 119** identifies a section's `ZwProtectVirtualMemory` failure. Its message includes the section name/index, RVA, sizes, requested protection, addresses and NTSTATUS. It reports observed facts; an `ACCESS_DENIED` status does not by itself prove a particular policy cause.
-
-Protection branches **117 / 118 / 119 / 123** also capture:
-
-- `pre_page`: first-region state, type, current/allocation protection, base, size and request coverage.
-- `pre_dynamic`: raw dynamic-code flags and decoded policy bits.
-- `pre_protection`: protection level, type, audit bit and signer.
-
-> [!IMPORTANT]
-> These are **read-only pre-call queries**. They do not set a policy, relax permissions or change the original protection arguments. Failed/unsupported/malformed queries are `UNAVAILABLE`, not “policy disabled.” The snapshot is not atomic across an actively changing process.
-
-> [!WARNING]
-> A successful HTTP request or IOCTL transport is not proof of a successful DLL map. Check the validated job state and kernel result. Missing or invalid diagnostics become `null` / indeterminate; the panel does not retry mapping automatically.
-
-Refreshing a job list only reads its state. For the full workflow and limitations, see the [guide](docs/en/GUIDE.md) and [panel reference](kernel_control_panel/README_ko.md#manualv4-커널-매핑).
+To package the panel, activate the build environment, install PyInstaller and run `tools\build_release.cmd` inside `kernel_control_panel`. It writes to a fresh `dist/3.2.3/KernelStudio` directory, or a new timestamped child when that version directory exists, preserving earlier packages and data.
 
 ## Build, test, and know what was tested
 

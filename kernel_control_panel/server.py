@@ -259,6 +259,14 @@ class StructDissectRequest(BaseModel):
 class ThreadContextRequest(BaseModel):
     registers: Dict[str, str]
 
+class ApcNormalizeRequest(BaseModel):
+    attached_process_id: int
+    selected_thread_id: int
+    normalize_address: str
+    normalize_context: str = "0"
+    system_buffer1: str = "0"
+    system_buffer2: str = "0"
+
 class HwbpSetRequest(BaseModel):
     pid: int
     address: str
@@ -331,6 +339,32 @@ def get_process_threads(pid: int, max_threads: int = 64):
         count=driver.query_process_extended(pid)
         if count.get('success'):result.update(total=count['thread_count'],truncated=count['thread_count']>len(result['threads']))
     return result
+
+@app.post("/api/apc/normalize")
+def register_apc_normalize(req: ApcNormalizeRequest):
+    if not 0 < req.attached_process_id <= 0xFFFFFFFF:
+        raise HTTPException(400, '대상 프로세스 ID 범위를 확인하세요')
+    if not 0 < req.selected_thread_id <= 0xFFFFFFFF:
+        raise HTTPException(400, '대상 스레드 ID 범위를 확인하세요')
+
+    try:
+        values = [parse_int(value) for value in (
+            req.normalize_address, req.normalize_context,
+            req.system_buffer1, req.system_buffer2
+        )]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, '주소와 인자는 10진수 또는 0x 형식의 64비트 값이어야 합니다') from exc
+
+    if any(value < 0 or value > 0xFFFFFFFFFFFFFFFF for value in values):
+        raise HTTPException(400, '주소와 인자는 64비트 unsigned 범위여야 합니다')
+    if values[0] == 0:
+        raise HTTPException(400, 'Normalize_Address는 0일 수 없습니다')
+
+    return driver.register_user_apc(
+        req.attached_process_id,
+        req.selected_thread_id,
+        *values
+    )
 
 @app.get("/api/thread/{tid}/context")
 def get_thread_context(tid: int):

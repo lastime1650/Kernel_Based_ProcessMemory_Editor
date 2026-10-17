@@ -87,6 +87,7 @@ IOCTL_HELPER_QUERY_FUNCTION_CALL = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x823, METHOD_B
 IOCTL_HELPER_RELEASE_FUNCTION_CALL = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x824, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_QUERY_PROCESS_OBJECT = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x825, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_READ_PROCESS_OBJECT = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x826, METHOD_BUFFERED, RW_ACCESS)
+IOCTL_HELPER_REGISTER_USER_APC = CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_QUERY_OB_CALLBACKS_STATUS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.FUNCTION, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_REGISTER_OB_CALLBACKS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.REGISTER_FUNCTION, METHOD_BUFFERED, RW_ACCESS)
 IOCTL_HELPER_UNREGISTER_OB_CALLBACKS = CTL_CODE(FILE_DEVICE_UNKNOWN, OB.UNREGISTER_FUNCTION, METHOD_BUFFERED, RW_ACCESS)
@@ -116,6 +117,22 @@ class READ_PROCESS_OBJECT_REQUEST(ctypes.Structure):
 
 assert ctypes.sizeof(READ_PROCESS_OBJECT_REQUEST) == 4152
 assert READ_PROCESS_OBJECT_REQUEST.Data.offset == 56
+
+
+class REGISTER_USER_APC_REQUEST(ctypes.Structure):
+    _pack_ = 8
+    _fields_ = [('ProcessId', ctypes.c_uint32), ('ThreadId', ctypes.c_uint32),
+                ('UserApcFunction', ctypes.c_uint64), ('NormalContext', ctypes.c_uint64),
+                ('NormalSystemParameter1', ctypes.c_uint64), ('NormalSystemParameter2', ctypes.c_uint64),
+                ('ResultStatus', ctypes.c_int32)]
+
+
+assert ctypes.sizeof(REGISTER_USER_APC_REQUEST) == 48
+assert REGISTER_USER_APC_REQUEST.UserApcFunction.offset == 8
+assert REGISTER_USER_APC_REQUEST.NormalContext.offset == 16
+assert REGISTER_USER_APC_REQUEST.NormalSystemParameter1.offset == 24
+assert REGISTER_USER_APC_REQUEST.NormalSystemParameter2.offset == 32
+assert REGISTER_USER_APC_REQUEST.ResultStatus.offset == 40
 
 class CREATE_FUNCTION_CALL_REQUEST(ctypes.Structure):
     _pack_ = 8
@@ -917,6 +934,61 @@ class KernelDriverBridge:
             "threads": threads
         }
 
+    def register_user_apc(self, pid: int, tid: int, normalize_address: Any,
+                          normalize_context: Any = 0, system_buffer1: Any = 0,
+                          system_buffer2: Any = 0) -> Dict[str, Any]:
+        """Queue the selected target thread's user APC through IOCTL 0x900."""
+        if isinstance(pid, bool) or not isinstance(pid, int) or not 0 < pid <= 0xFFFFFFFF:
+            raise ValueError('대상 프로세스 ID 범위를 확인하세요')
+        if isinstance(tid, bool) or not isinstance(tid, int) or not 0 < tid <= 0xFFFFFFFF:
+            raise ValueError('대상 스레드 ID 범위를 확인하세요')
+
+        def pointer_value(value: Any, name: str) -> int:
+            if isinstance(value, bool):
+                raise ValueError(f'{name}: 64비트 주소/값을 입력하세요')
+            if isinstance(value, int):
+                parsed = value
+            else:
+                text = str(value).strip()
+                if not text:
+                    raise ValueError(f'{name}: 64비트 주소/값을 입력하세요')
+                parsed = int(text, 16 if text.lower().startswith('0x') else 10)
+            if not 0 <= parsed <= 0xFFFFFFFFFFFFFFFF:
+                raise ValueError(f'{name}: 64비트 범위를 벗어났습니다')
+            return parsed
+
+        address = pointer_value(normalize_address, 'Normalize_Address')
+        context = pointer_value(normalize_context, 'Normalize_Context')
+        parameter1 = pointer_value(system_buffer1, 'SystemBuffer 1')
+        parameter2 = pointer_value(system_buffer2, 'SystemBuffer 2')
+        if address == 0:
+            raise ValueError('Normalize_Address는 0일 수 없습니다')
+
+        req = REGISTER_USER_APC_REQUEST()
+        req.ProcessId = pid
+        req.ThreadId = tid
+        req.UserApcFunction = address
+        req.NormalContext = context
+        req.NormalSystemParameter1 = parameter1
+        req.NormalSystemParameter2 = parameter2
+        req.ResultStatus = -1073741823  # STATUS_UNSUCCESSFUL until a complete response arrives.
+        ok, error, returned = self.send_ioctl(IOCTL_HELPER_REGISTER_USER_APC, req)
+        valid = ok and returned == ctypes.sizeof(req)
+        return {
+            'success': bool(valid and req.ResultStatus >= 0),
+            'transport_ok': bool(ok),
+            'packet_valid': bool(valid),
+            'error_code': error,
+            'bytes_returned': returned,
+            'result_status': f'0x{req.ResultStatus & 0xFFFFFFFF:08X}',
+            'process_id': pid,
+            'thread_id': tid,
+            'normalize_address': f'0x{address:016X}',
+            'normalize_context': f'0x{context:016X}',
+            'system_buffer1': f'0x{parameter1:016X}',
+            'system_buffer2': f'0x{parameter2:016X}'
+        }
+
     # 7. 0x81D: Query Thread Info
     def query_thread_info(self, tid: int) -> Dict[str, Any]:
         req = THREAD_INFO_REQUEST()
@@ -1334,12 +1406,13 @@ class KernelDriverBridge:
             "result_status": f"0x{req.ResultStatus & 0xFFFFFFFF:08X}"
         }
 
-    def manual_map_dll(self, pid: int, path: str) -> Dict[str, Any]:
-        req, nt_path = manual_map_request(pid, path)
+    def manual_map_dll(self, pid: int, path: str, only_mapping: bool = False) -> Dict[str, Any]:
+        req, nt_path = manual_map_request(pid, path, only_mapping)
         expected_path = bytes(req.ImagePath)
         ok, error, returned = self.send_ioctl(IOCTL_MANUAL_MAP, req)
         valid = (ok and returned == ctypes.sizeof(req) and req.Version == MANUAL_MAP_VERSION
-                 and req.Reserved == 0 and req.ProcessId == pid and bytes(req.ImagePath) == expected_path)
+                 and req.OnlyMapping == int(only_mapping) and req.Reserved == int(only_mapping)
+                 and req.ProcessId == pid and bytes(req.ImagePath) == expected_path)
         base, entry = int(req.MappedBase), int(req.EntryPoint)
         message = decode_failmessage(req) if valid else None
         addresses_valid = valid_result_addresses(base, entry)
@@ -1351,7 +1424,8 @@ class KernelDriverBridge:
                 'failcode': int(req.failcode) if valid else None,
                 'failmessage': message if valid else None,
                 'mapped_base': f'0x{base:X}' if valid else '0x0',
-                'entry_point': f'0x{entry:X}' if valid else '0x0', 'nt_path': nt_path,
+                'entry_point': f'0x{entry:X}' if valid else '0x0',
+                'only_mapping': bool(only_mapping), 'nt_path': nt_path,
                 # Failed/short transport may have reached the kernel. A retained
                 # base on operation failure may still have running target code.
                 'execution_unknown': bool(not valid or (req.ResultStatus != 0 and base != 0) or

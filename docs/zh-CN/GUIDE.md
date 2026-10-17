@@ -2,7 +2,7 @@
 
 [中文概览](../../README.zh-CN.md) · [한국어](../ko/GUIDE.md) · [English](../en/GUIDE.md) · [Español](../es/GUIDE.md)
 
-**驱动 2.6.0.1 · Kernel Studio 3.2.2 · Windows x64 · ManualV4 ABI v3 / 2104 字节**
+**驱动 2.6.0.2 · Kernel Studio 3.2.3 · Windows x64 · ManualV4 ABI v3 / 2104 字节**
 
 > [!IMPORTANT]
 > 配套使用更新后的驱动和面板。仪表盘显示的是设备中**已加载的版本**，不是磁盘 `.sys` 的版本。构建成功与驱动加载成功是两项检查。
@@ -34,7 +34,7 @@ python kernel_studio.py
 
 打开 [http://127.0.0.1:8005/](http://127.0.0.1:8005/)。`kernel_studio.py` 和 `server.py` 默认均为 **8005**。可用 `python kernel_studio.py --port 8006` 指定其他端口。服务器仅绑定本机回环地址；设备和管理状态属于单个进程，应只运行一个 worker。源码服务器用 Ctrl+C 停止。
 
-打包时，在构建环境安装 PyInstaller，然后从此目录运行 `tools\build_release.cmd`。输出位于 `dist/3.2.2/KernelStudio`；版本目录已存在则建立带时间戳的新子目录。关闭旧面板后运行新的 `KernelStudio.exe`。
+打包时，在构建环境安装 PyInstaller，然后从此目录运行 `tools\build_release.cmd`。输出位于 `dist/3.2.3/KernelStudio`；版本目录已存在则建立带时间戳的新子目录。关闭旧面板后运行新的 `KernelStudio.exe`。
 
 > [!NOTE]
 > `/api/build` 描述正在运行的面板，`/api/status` 返回实际连接的驱动信息。替换文件不会更新仍在运行的面板或仍已加载的驱动。
@@ -52,7 +52,7 @@ python kernel_studio.py
 
 ## 4. 正确解读 ManualV4
 
-在 **ManualV4** 选择目标，输入绝对磁盘路径，例如 `C:\DLLs\Example.dll`，然后提交 **커널 매핑 요청**。面板在发出内核请求前验证进程身份。刷新页面或任务列表不会再次提交映射请求。
+在 **ManualV4** 选择目标和 DLL 文件，然后提交 **커널 매핑 요청**。面板会将最大 64 MiB 的文件上传到本地缓存，并在向内核发送缓存路径前验证进程身份。刷新页面或任务列表不会再次提交映射请求。
 
 | 结果 | 解读 |
 |---|---|

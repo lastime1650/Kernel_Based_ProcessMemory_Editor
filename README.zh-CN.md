@@ -5,8 +5,8 @@
 **SampleKernel1 · Kernel Studio**<br>
 由内核驱动支持的 Windows 进程内存本地工作台。
 
-![Driver 2.6.0.1](https://img.shields.io/badge/Driver-2.6.0.1-2563eb)
-![Panel 3.2.2](https://img.shields.io/badge/Kernel_Studio-3.2.2-7c3aed)
+![Driver 2.6.0.2](https://img.shields.io/badge/Driver-2.6.0.2-2563eb)
+![Panel 3.2.3](https://img.shields.io/badge/Kernel_Studio-3.2.3-7c3aed)
 ![Manual ABI v3 2104 bytes](https://img.shields.io/badge/Manual_ABI-v3_%C2%B7_2104_bytes-0f766e)
 ![Windows x64](https://img.shields.io/badge/Platform-Windows_x64-334155)
 
@@ -14,28 +14,49 @@
 
 ![项目结构：浏览器、本地控制面板、IOCTL 桥接和内核驱动](docs/images/project-overview.svg)
 
-[快速开始](#快速开始) · [ManualV4 诊断](#manualv4-诊断) · [使用指南](docs/zh-CN/GUIDE.md) · [API / ABI](docs/reference/API_ABI.md)
+[快速开始](#快速开始) · [按导航浏览功能](#features) · [使用指南](docs/zh-CN/GUIDE.md) · [API / ABI](docs/reference/API_ABI.md)
 
 </div>
 
 > [!IMPORTANT]
-> 当前源码对应 **驱动 2.6.0.1** 和 **面板 3.2.2**。ManualV4 使用 **v3、2104 字节**的数据包，与 v1/v2 客户端不兼容。重新生成 `.sys` 不会自动替换 Windows 中已加载的驱动。
+> 当前源码对应 **驱动 2.6.0.2** 和 **面板 3.2.3**。ManualV4 使用 **v3、2104 字节**的数据包，与 v1/v2 客户端不兼容。重新生成 `.sys` 不会自动替换 Windows 中已加载的驱动。
 
-## 把地址变成工作流程
+<a id="features"></a>
 
-选择进程、查看内存、逐步缩小扫描候选，再将地址传给编辑器、Watch、PE 工具或反汇编。Kernel Studio 在本地浏览器中连接这些步骤。
+## 按导航逐项了解功能
 
-应用界面仍为**韩语**。中文文档说明相同源码和控件，并不表示程序已提供中文界面。
+下表按面板侧边栏顺序列出各页面；括号中的韩文名称与应用界面一致。
 
-| 工作区 | 提供的功能 |
+| 导航 | 功能 |
 |---|---|
-| 内存编辑 / 管理 | 按类型读写、字节编辑、分配、保护属性、复制和填充 |
-| 扫描 / Watch | New → Next 扫描、AOB 和字符串、SQLite 候选、保存地址与数值冻结 |
-| 映像 / PE | 模块、节、导入/IAT、导出、地址归属及可选 PDB 符号 |
-| 反汇编 / 结构体 | x86/x64 指令、CFG、补丁预览、指针链及自定义字段 |
-| 线程 / 断点 | 通用寄存器、暂停/恢复、优先级及硬件断点管理 |
-| 转储 / 项目 | 大范围及映射映像转储、进度/取消、清单与恢复记录 |
-| ManualV4 | 内核 DLL 映射、操作状态、失败位置及详细诊断 |
+| **대시보드 (仪表盘)** | 查看驱动连接、所选目标和最近的工作区状态。 |
+| **구조체 / 클래스 (结构体 / 类)** | 定义并查看自定义内存布局的字段与偏移。 |
+| **프로젝트 작업 공간 (项目工作区)** | 将分析设置、地址和扫描状态保存为项目并恢复。 |
+| **변경 기록 / 묶음 (变更记录 / 分组)** | 将变更项目分组、添加备注并回顾。 |
+| **변화 타임라인 (变化时间线)** | 按时间记录选定的值和字节，并比较两个样本。 |
+| **프로세스 / 권한 (进程 / 权限)** | 查看进程信息、令牌、句柄及相关线程。 |
+| **EPROCESS 구조체 (EPROCESS 结构体)** | 依据不同版本的布局查看内核进程对象字段。 |
+| **메모리 편집 (内存编辑)** | 按数据类型或单个字节读取和编辑所选地址。 |
+| **읽기 / 쓰기 / 덤프 (读取 / 写入 / 转储)** | 发送原始内存请求并转储指定范围的字节。 |
+| **메모리 할당 (内存分配)** | 在所选进程中分配区域并查看返回地址。 |
+| **메모리 관리 (内存管理)** | 管理分配、释放、保护、复制、填充和内存快照。 |
+| **메모리 스캔 (内存扫描)** | 通过数值、模式、AOB 和字符串搜索缩小候选地址。 |
+| **Watch / 값 고정 (监视 / 冻结)** | 跟踪监视地址，并冻结或解除冻结其数值。 |
+| **모듈 / PE / 주소 (模块 / PE / 地址)** | 查看模块、区域、PE 节、导入、导出和地址归属。 |
+| **메모리 / 이미지 덤프 (内存 / 映像转储)** | 查看范围转储和映像转储的进度与结果。 |
+| **메모리 맵 변화 (内存映射变化)** | 保存内存区域映射并比较不同时间的样本。 |
+| **스레드 / 레지스터 (线程 / 寄存器)** | 查看线程和通用寄存器，并管理上下文与优先级。 |
+| **APC_NORMALIZE** | 为所选线程请求 User APC 例程，并传递上下文和两个系统参数。 |
+| **하드웨어 중단점 (硬件断点)** | 按线程设置、查询和移除硬件断点。 |
+| **스냅샷 / 패치 / 분석 (快照 / 补丁 / 分析)** | 比较或恢复快照、预览/应用/撤销补丁，并分析指针或结构体。 |
+| **디스어셈블리 (反汇编)** | 显示内存中的 x86/x64 指令并检查控制流。 |
+| **DLL / 이미지 함수 (DLL / 映像函数)** | 关联映像导出和 PDB 符号，查看函数地址与详情。 |
+| **ManualV4** | 请求内核映射 DLL，可选择跳过 DllMain，并查看内核结果。 |
+| **ManualV4_Viewer** | 验证成功映射的基址后，查看 PDB 函数地址和参数。 |
+| **ObRegisterCallback Panel** | 查看、注册和注销驱动全局 Object Callback。 |
+| **작업 큐 / 시나리오 (任务队列 / 场景)** | 排队运行 JSON 场景和组合请求，并查看进度。 |
+| **호출 이력 / 기능 (调用历史 / 功能)** | 查看驱动状态和受跟踪的函数调用结果。 |
+| **메모리 Wide View (Beta) (内存宽视图)** | 在宽视图中探索内存映射、邻近字节和观测到的变化。 |
 
 > [!TIP]
 > “这个地址应该没错”很有冒险精神。先预览字节并确认目标进程吧——明天的你已经有够多标签页要收拾了。
@@ -54,7 +75,7 @@ flowchart LR
 
 目标读写和内存区域查询通过驱动完成。用户态比较返回的字节、管理扫描候选并解析 PE/指令。设备连接使用 `CreateFileW`、`DeviceIoControl` 和 `CloseHandle`。
 
-**43 个请求契约**覆盖 `0x800`–`0x829` 和 ManualV4 的 `0x878`。完整清单见 [API / ABI 参考](docs/reference/API_ABI.md)，无需在首页参加滚动马拉松。
+**44 个请求契约**覆盖 `0x800`–`0x829`、ManualV4 的 `0x878` 和 APC_NORMALIZE 的 `0x900`。完整清单见 [API / ABI 参考](docs/reference/API_ABI.md)，无需在首页参加滚动马拉松。
 
 ## 工作区预览
 
@@ -62,7 +83,7 @@ flowchart LR
 |---|---|
 | ![历史内存编辑器界面](docs/images/02-memory-editor.jpg) | ![历史内存扫描界面](docs/images/03-memory-scan.jpg) |
 
-*截图来自 2026-10-05–06，拍摄时尚未选择目标。它们展示原有界面，不包含 3.2.2 新增的 ManualV4 诊断。详见[图片来源](docs/images/README.md)。*
+*截图拍摄于 2026-10-05–06，当时尚未选择目标。它们仅供界面参考，并未完整展示当前导航或验证结果。详见[图片来源](docs/images/README.md)。*
 
 ## 快速开始
 
@@ -96,45 +117,7 @@ python kernel_studio.py
 > [!NOTE]
 > 进程发现通过现有内核查询契约探测 PID 范围，不是完整的系统枚举。列表缺少目标时可扩大范围或手动输入 PID。
 
-打包面板时，激活构建环境、安装 PyInstaller，并在 `kernel_control_panel` 中运行 `tools\build_release.cmd`。它写入新的 `dist/3.2.2/KernelStudio`；版本目录已存在时创建带时间戳的子目录，保留之前的软件包和数据。
-
-## ManualV4 诊断
-
-在 **ManualV4** 中输入磁盘 DLL 的绝对路径，例如 `C:\DLLs\Example.dll`。面板在将 PID 和路径发送给内核前重新检查进程身份。
-
-```mermaid
-flowchart LR
-    Request["PID + 磁盘 DLL 路径"] --> Kernel["IOCTL 0x878 · v3"]
-    Kernel --> Result{"响应通过验证？"}
-    Result -- 是 --> Status["NTSTATUS + failcode + failmessage"]
-    Result -- 否 --> Unknown["结果不确定 · 不自动重试"]
-    Status --> UI["任务详情 + 保存的历史"]
-```
-
-| 字段 | 含义 |
-|---|---|
-| `ResultStatus` / NTSTATUS | 内核操作返回的状态 |
-| `failcode` | 成功为 `0`；正整数标识失败分支 |
-| `failmessage[1024]` | ANSI 诊断：最多 1023 个 ASCII 字节、NUL 结束、尾部填零 |
-| `MappedBase` / `EntryPoint` | 返回的映像基址和入口点；显示为十六进制字符串 |
-
-[manual_map_protocol.h](manual_map_protocol.h) 统一定义数据包布局：`failcode` 偏移 **1076**，`failmessage` 偏移 **1080**。即使清理阶段改变最终操作状态，仍保留首次失败诊断。超过空间的消息以 `[truncated]` 结尾。
-
-例如，**failcode 119** 标识某个节的 `ZwProtectVirtualMemory` 失败。消息包括节名/索引、RVA、大小、请求保护属性、地址和 NTSTATUS。它报告观测事实；仅凭 `ACCESS_DENIED` 不能确定具体策略原因。
-
-保护分支 **117 / 118 / 119 / 123** 还会捕获：
-
-- `pre_page`：首个区域的状态、类型、当前/分配保护属性、基址、大小及请求覆盖范围。
-- `pre_dynamic`：动态代码策略原始 Flags 与解码后的位。
-- `pre_protection`：保护级别、类型、Audit 位和 Signer。
-
-> [!IMPORTANT]
-> 这些是**调用前的只读查询**，不设置策略、不放宽权限、不改变原保护调用参数。失败、不支持或格式错误的查询显示 `UNAVAILABLE`，不能解读为“策略关闭”。目标正在变化时，这不是原子快照。
-
-> [!WARNING]
-> HTTP 请求成功或 IOCTL 传输成功，并不代表 DLL 映射成功。应检查已验证的任务状态和内核结果。缺失或无效诊断显示为 `null` / 不确定，面板不会自动重新映射。
-
-刷新任务列表只读取状态。完整操作流程及限制见[使用指南](docs/zh-CN/GUIDE.md)与[面板参考](kernel_control_panel/README_ko.md#manualv4-커널-매핑)。
+打包面板时，激活构建环境、安装 PyInstaller，并在 `kernel_control_panel` 中运行 `tools\build_release.cmd`。它写入新的 `dist/3.2.3/KernelStudio`；版本目录已存在时创建带时间戳的子目录，保留之前的软件包和数据。
 
 ## 构建、测试与验证范围
 
